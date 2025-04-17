@@ -211,7 +211,7 @@ class PostureDetector:
 
         # Draw posture correction guidance if enabled
         if self.show_guidance and not analysis_results['good_posture']:
-            draw_posture_guidance(frame, analysis_results)
+            frame = draw_posture_guidance(frame, analysis_results)
 
         return frame
 

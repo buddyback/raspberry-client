@@ -95,11 +95,11 @@ class PostureAnalyzer:
         )
 
         # Generate guidance for issues
-        if results['neck_angle'] >= NECK_ANGLE_THRESHOLD:
-            results['issues']['neck'] = "Straighten your neck (chin up)"
+        if results['neck_angle'] > NECK_ANGLE_THRESHOLD:
+            results['issues']['neck'] = "Straighten your neck"
 
-        if results['torso_angle'] >= TORSO_ANGLE_THRESHOLD:
-            results['issues']['torso'] = "Sit upright (back straight)"
+        if results['torso_angle'] > TORSO_ANGLE_THRESHOLD:
+            results['issues']['torso'] = "Sit upright"
 
         if results['shoulder_offset'] is not None and results['shoulder_offset'] >= 100:
             results['issues']['shoulders'] = "Level your shoulders"
