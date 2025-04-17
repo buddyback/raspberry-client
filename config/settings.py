@@ -24,12 +24,13 @@ COLORS = {
     'light_green': (127, 233, 100),
     'yellow': (0, 255, 255),
     'pink': (255, 0, 255),
-    'white': (255, 255, 255)
+    'white': (255, 255, 255),
+    'black': (0, 0, 0),
+    'translucent_black': (0, 0, 0, 128)  # For overlay backgrounds
 }
 
 # Font settings
 FONT_FACE = 0  # FONT_HERSHEY_SIMPLEX
-FONT_SCALE = 0.7
 FONT_THICKNESS = 2
 
 # Instruction panel settings

@@ -68,7 +68,7 @@ class CameraManager:
             new_width: New width for the frame
             new_height: New height for the frame
         """
-        if self.cap is not None:
+        if self.cap is not None and new_width > 0 and new_height > 0:
             self.frame_width = new_width
             self.frame_height = new_height
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.frame_width)
