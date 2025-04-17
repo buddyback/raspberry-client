@@ -2,6 +2,7 @@
 Posture analysis module for detecting posture issues and providing guidance.
 """
 import math
+
 from config.settings import NECK_ANGLE_THRESHOLD, TORSO_ANGLE_THRESHOLD
 
 

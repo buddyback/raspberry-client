@@ -20,12 +20,14 @@ This application uses computer vision to detect and provide feedback on your sit
 ## Installation
 
 1. Clone this repository:
+
 ```
 git clone https://github.com/yourusername/posture-detector.git
 cd posture-detector
 ```
 
 2. Install the required dependencies:
+
 ```
 pip install opencv-python mediapipe
 ```
@@ -33,6 +35,7 @@ pip install opencv-python mediapipe
 ## Usage
 
 Run the application with default settings:
+
 ```
 python -m main
 ```
@@ -45,6 +48,7 @@ python -m main
 - `--no-guidance`: Disable posture correction guidance
 
 Example:
+
 ```
 python -m main --width 800 --height 600 --camera 1
 ```
@@ -53,21 +57,24 @@ python -m main --width 800 --height 600 --camera 1
 
 - Press `q` to quit the application
 - Press `r` to enter resize mode
-  - In resize mode, use arrow keys to adjust the frame size
-  - Press `r` again to exit resize mode
+    - In resize mode, use arrow keys to adjust the frame size
+    - Press `r` again to exit resize mode
 
 ## How It Works
 
 The application uses MediaPipe's pose detection to identify key body landmarks:
+
 - Shoulders
 - Ears
 - Hips
 
 It then calculates:
+
 1. Neck angle (between shoulder and ear)
 2. Torso angle (between hip and shoulder)
 
 Good posture is defined as:
+
 - Neck angle < 40°
 - Torso angle < 10°
 

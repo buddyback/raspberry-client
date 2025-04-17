@@ -2,8 +2,8 @@
 Visualization utilities for the posture detector.
 """
 import cv2
-import numpy as np
-from config.settings import COLORS, FONT_FACE, FONT_THICKNESS
+
+from config.settings import COLORS, FONT_FACE
 from config.settings import PANEL_PADDING, PANEL_OPACITY, TEXT_PADDING
 
 
@@ -18,7 +18,7 @@ def get_optimal_font_scale(frame_width):
         Float: Font scale suitable for the frame size
     """
     base_width = 640.0  # Base width for reference
-    base_scale = 0.7    # Base font scale
+    base_scale = 0.7  # Base font scale
 
     # Scale font proportionally to frame width
     return max(0.5, base_scale * (frame_width / base_width))
@@ -70,12 +70,7 @@ def draw_posture_lines(frame, landmarks, color):
         cv2.circle(frame, l_hip_ref, radius, COLORS['yellow'], -1)
 
     # Draw lines
-    line_pairs = [
-        (l_shldr, l_ear),
-        (l_shldr, l_shldr_ref),
-        (l_hip, l_shldr),
-        (l_hip, l_hip_ref)
-    ]
+    line_pairs = [(l_shldr, l_ear), (l_shldr, l_shldr_ref), (l_hip, l_shldr), (l_hip, l_hip_ref)]
 
     for start, end in line_pairs:
         if all(x is not None for x in start) and all(x is not None for x in end):
@@ -104,15 +99,11 @@ def draw_angle_text(frame, landmarks, neck_angle, torso_angle, color):
     if l_shldr is not None:
         # Ensure text stays within frame boundaries
         x_pos = min(l_shldr[0] + 10, w - 40)
-        cv2.putText(frame, str(int(neck_angle)),
-                    (x_pos, l_shldr[1]),
-                    FONT_FACE, font_scale, color, thickness)
+        cv2.putText(frame, str(int(neck_angle)), (x_pos, l_shldr[1]), FONT_FACE, font_scale, color, thickness)
 
     if l_hip is not None:
         x_pos = min(l_hip[0] + 10, w - 40)
-        cv2.putText(frame, str(int(torso_angle)),
-                    (x_pos, l_hip[1]),
-                    FONT_FACE, font_scale, color, thickness)
+        cv2.putText(frame, str(int(torso_angle)), (x_pos, l_hip[1]), FONT_FACE, font_scale, color, thickness)
 
 
 def draw_posture_guidance(frame, analysis_results):
@@ -144,25 +135,20 @@ def draw_posture_guidance(frame, analysis_results):
     panel_y2 = min(h - PANEL_PADDING, panel_height + PANEL_PADDING)
 
     overlay = frame.copy()
-    cv2.rectangle(overlay,
-                 (panel_x1, panel_y1),
-                 (panel_x2, panel_y2),
-                 COLORS['dark_blue'], -1)
+    cv2.rectangle(overlay, (panel_x1, panel_y1), (panel_x2, panel_y2), COLORS['dark_blue'], -1)
 
     # Add title
     title_y = panel_y1 + PANEL_PADDING + int(20 * font_scale)
-    cv2.putText(overlay, "Posture Correction Guide:",
-                (panel_x1 + TEXT_PADDING, title_y),
-                FONT_FACE, font_scale, COLORS['white'], thickness)
+    cv2.putText(overlay, "Posture Correction Guide:", (panel_x1 + TEXT_PADDING, title_y), FONT_FACE, font_scale,
+                COLORS['white'], thickness)
 
     # Add correction instructions
     for i, (issue, correction) in enumerate(issues.items()):
         y_pos = title_y + int((i + 1) * line_height)
         if y_pos >= panel_y2 - 5:  # Stop if we're going beyond panel
             break
-        cv2.putText(overlay, f"• {correction}",
-                    (panel_x1 + TEXT_PADDING, y_pos),
-                    FONT_FACE, font_scale * 0.9, COLORS['white'], thickness)
+        cv2.putText(overlay, f"• {correction}", (panel_x1 + TEXT_PADDING, y_pos), FONT_FACE, font_scale * 0.9,
+                    COLORS['white'], thickness)
 
     # Apply the overlay with transparency
     cv2.addWeighted(overlay, PANEL_OPACITY, frame, 1 - PANEL_OPACITY, 0, frame)
@@ -196,12 +182,10 @@ def draw_status_bar(frame, analysis_results):
     y_pos = h - int(status_height / 2)
     if good_time > 0:
         time_string = f'Good Posture Time: {round(good_time, 1)}s'
-        cv2.putText(frame, time_string, (10, y_pos),
-                    FONT_FACE, font_scale, COLORS['green'], thickness)
+        cv2.putText(frame, time_string, (10, y_pos), FONT_FACE, font_scale, COLORS['green'], thickness)
     else:
         time_string = f'Bad Posture Time: {round(bad_time, 1)}s'
-        cv2.putText(frame, time_string, (10, y_pos),
-                    FONT_FACE, font_scale, COLORS['red'], thickness)
+        cv2.putText(frame, time_string, (10, y_pos), FONT_FACE, font_scale, COLORS['red'], thickness)
 
     # Display alignment status
     alignment = analysis_results.get('shoulder_offset', 0)
@@ -215,8 +199,7 @@ def draw_status_bar(frame, analysis_results):
     # Position text on right side, accounting for text length
     text_size = cv2.getTextSize(align_text, FONT_FACE, font_scale, thickness)[0]
     x_pos = w - text_size[0] - 10
-    cv2.putText(frame, align_text, (max(10, x_pos), y_pos),
-                FONT_FACE, font_scale, align_color, thickness)
+    cv2.putText(frame, align_text, (max(10, x_pos), y_pos), FONT_FACE, font_scale, align_color, thickness)
 
 
 def draw_posture_indicator(frame, good_posture):
@@ -244,10 +227,6 @@ def draw_posture_indicator(frame, good_posture):
 
     # Background for indicator
     padding = int(5 * (w / 640))
-    cv2.rectangle(frame,
-                 (10, 40),
-                 (10 + text_size[0] + padding*2, 40 + text_size[1] + padding),
-                 (0, 0, 0), -1)
+    cv2.rectangle(frame, (10, 40), (10 + text_size[0] + padding * 2, 40 + text_size[1] + padding), (0, 0, 0), -1)
 
-    cv2.putText(frame, status_text, (10 + padding, 40 + text_size[1]),
-                FONT_FACE, font_scale, color, thickness)
+    cv2.putText(frame, status_text, (10 + padding, 40 + text_size[1]), FONT_FACE, font_scale, color, thickness)

@@ -1,19 +1,21 @@
 """
 Main posture detection module that integrates camera capture and posture analysis.
 """
-import cv2
-import mediapipe as mp
-import time
 import signal
 import sys
+import time
+
+import cv2
+import mediapipe as mp
+
+from config.settings import (
+    WARNING_TIME_THRESHOLD, WARNING_COOLDOWN, COLORS, FONT_FACE, CAMERA_FPS
+)
+from detector.posture_analyzer import PostureAnalyzer
 from utils.visualization import (
     draw_landmarks, draw_posture_lines, draw_angle_text,
     draw_posture_guidance, draw_status_bar, draw_posture_indicator,
     get_optimal_font_scale
-)
-from detector.posture_analyzer import PostureAnalyzer
-from config.settings import (
-    WARNING_TIME_THRESHOLD, WARNING_COOLDOWN, COLORS, FONT_FACE, CAMERA_FPS
 )
 
 
