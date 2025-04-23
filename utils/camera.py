@@ -1,6 +1,7 @@
 """
 Camera utility for handling video capture and frame processing.
 """
+
 import cv2
 
 
@@ -51,7 +52,7 @@ class CameraManager:
             raise RuntimeError("Camera not initialized")
 
         ret, frame = self.cap.read()
-        
+
         if ret and self.rotation != 0:
             # Apply rotation if needed
             if self.rotation == 90:
@@ -60,7 +61,7 @@ class CameraManager:
                 frame = cv2.rotate(frame, cv2.ROTATE_180)
             elif self.rotation == 270:
                 frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
-                
+
         return ret, frame
 
     def release(self):

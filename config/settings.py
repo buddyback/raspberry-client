@@ -19,16 +19,16 @@ WARNING_COOLDOWN = 60  # seconds
 
 # Colors in BGR format
 COLORS = {
-    'blue': (255, 127, 0),
-    'red': (50, 50, 255),
-    'green': (127, 255, 0),
-    'dark_blue': (127, 20, 0),
-    'light_green': (127, 233, 100),
-    'yellow': (0, 255, 255),
-    'pink': (255, 0, 255),
-    'white': (255, 255, 255),
-    'black': (0, 0, 0),
-    'translucent_black': (0, 0, 0, 128)  # For overlay backgrounds
+    "blue": (255, 127, 0),
+    "red": (50, 50, 255),
+    "green": (127, 255, 0),
+    "dark_blue": (127, 20, 0),
+    "light_green": (127, 233, 100),
+    "yellow": (0, 255, 255),
+    "pink": (255, 0, 255),
+    "white": (255, 255, 255),
+    "black": (0, 0, 0),
+    "translucent_black": (0, 0, 0, 128),  # For overlay backgrounds
 }
 
 # Font settings

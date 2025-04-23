@@ -44,7 +44,7 @@ jobs:
           
       - name: Check formatting with Black
         run: |
-          black --check --diff .
+          black --line-length 120 --check --diff .
           
       - name: Check imports with isort
         run: |

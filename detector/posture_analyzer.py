@@ -1,11 +1,14 @@
 """
 Posture analysis module for detecting posture issues and providing guidance.
 """
+
 import math
 
 from config.settings import (
-    NECK_ANGLE_THRESHOLD, TORSO_ANGLE_THRESHOLD,
-    RELATIVE_NECK_ANGLE_THRESHOLD, RECLINE_DETECTION_THRESHOLD
+    NECK_ANGLE_THRESHOLD,
+    RECLINE_DETECTION_THRESHOLD,
+    RELATIVE_NECK_ANGLE_THRESHOLD,
+    TORSO_ANGLE_THRESHOLD,
 )
 
 
@@ -44,8 +47,7 @@ class PostureAnalyzer:
             return 90
 
         # Calculate the angle with respect to vertical
-        theta = math.acos((y2 - y1) * (-y1) /
-                          (math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) * y1))
+        theta = math.acos((y2 - y1) * (-y1) / (math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) * y1))
         return int(180 / math.pi * theta)
 
     def analyze_posture(self, landmarks):
@@ -59,35 +61,35 @@ class PostureAnalyzer:
             Dictionary: Results of posture analysis
         """
         results = {
-            'neck_angle': None,
-            'torso_angle': None,
-            'shoulder_offset': None,
-            'good_posture': False,
-            'issues': {},
-            'webcam_position': None,
-            'is_reclined': False,
-            'relative_neck_angle': None
+            "neck_angle": None,
+            "torso_angle": None,
+            "shoulder_offset": None,
+            "good_posture": False,
+            "issues": {},
+            "webcam_position": None,
+            "is_reclined": False,
+            "relative_neck_angle": None,
         }
 
         # Extract key landmarks
-        l_shoulder = landmarks.get('l_shoulder')
-        r_shoulder = landmarks.get('r_shoulder')
-        l_ear = landmarks.get('l_ear')
-        r_ear = landmarks.get('r_ear')
-        l_hip = landmarks.get('l_hip')
-        r_hip = landmarks.get('r_hip')
-        
+        l_shoulder = landmarks.get("l_shoulder")
+        r_shoulder = landmarks.get("r_shoulder")
+        l_ear = landmarks.get("l_ear")
+        r_ear = landmarks.get("r_ear")
+        l_hip = landmarks.get("l_hip")
+        r_hip = landmarks.get("r_hip")
+
         # Get visibility information
-        primary_ear = landmarks.get('primary_ear', 'left')  # Default to left if not specified
-        l_ear_vis = landmarks.get('l_ear_visibility', 0)
-        r_ear_vis = landmarks.get('r_ear_visibility', 0)
+        primary_ear = landmarks.get("primary_ear", "left")  # Default to left if not specified
+        l_ear_vis = landmarks.get("l_ear_visibility", 0)
+        r_ear_vis = landmarks.get("r_ear_visibility", 0)
 
         # Determine webcam position relative to the user
         # Higher visibility on left side means webcam is on the right and vice versa
         if l_ear_vis > r_ear_vis:
-            results['webcam_position'] = 'right'  # If left ear is more visible, webcam is on right
+            results["webcam_position"] = "right"  # If left ear is more visible, webcam is on right
         else:
-            results['webcam_position'] = 'left'   # If right ear is more visible, webcam is on left
+            results["webcam_position"] = "left"  # If right ear is more visible, webcam is on left
 
         # Check if all required landmarks are available
         if None in [l_shoulder, r_shoulder] or (l_ear is None and r_ear is None) or (l_hip is None and r_hip is None):
@@ -96,9 +98,9 @@ class PostureAnalyzer:
         # Unpack coordinates
         l_shldr_x, l_shldr_y = l_shoulder
         r_shldr_x, r_shldr_y = r_shoulder
-        
+
         # Use the more visible ear for neck angle calculation
-        if primary_ear == 'left' and l_ear is not None:
+        if primary_ear == "left" and l_ear is not None:
             ear_x, ear_y = l_ear
             shoulder_x, shoulder_y = l_shoulder  # Use left shoulder with left ear
         elif r_ear is not None:
@@ -112,9 +114,9 @@ class PostureAnalyzer:
             else:
                 ear_x, ear_y = r_ear
                 shoulder_x, shoulder_y = r_shoulder
-        
+
         # Use the more visible hip
-        if primary_ear == 'left' and l_hip is not None:  # Assume if left ear is more visible, left hip might be too
+        if primary_ear == "left" and l_hip is not None:  # Assume if left ear is more visible, left hip might be too
             hip_x, hip_y = l_hip
         elif r_hip is not None:
             hip_x, hip_y = r_hip
@@ -126,42 +128,40 @@ class PostureAnalyzer:
                 hip_x, hip_y = r_hip
 
         # Calculate shoulder offset
-        results['shoulder_offset'] = self.calculate_distance(
-            l_shldr_x, l_shldr_y, r_shldr_x, r_shldr_y)
+        results["shoulder_offset"] = self.calculate_distance(l_shldr_x, l_shldr_y, r_shldr_x, r_shldr_y)
 
         # Calculate angles
-        results['neck_angle'] = self.calculate_angle(shoulder_x, shoulder_y, ear_x, ear_y)
-        results['torso_angle'] = self.calculate_angle(hip_x, hip_y, shoulder_x, shoulder_y)
-        
+        results["neck_angle"] = self.calculate_angle(shoulder_x, shoulder_y, ear_x, ear_y)
+        results["torso_angle"] = self.calculate_angle(hip_x, hip_y, shoulder_x, shoulder_y)
+
         # Calculate relative angle between neck and torso
-        results['relative_neck_angle'] = abs(results['neck_angle'] - results['torso_angle'])
-        
+        results["relative_neck_angle"] = abs(results["neck_angle"] - results["torso_angle"])
+
         # Detect if the person is in a reclined position
-        results['is_reclined'] = results['torso_angle'] >= RECLINE_DETECTION_THRESHOLD
-        
+        results["is_reclined"] = results["torso_angle"] >= RECLINE_DETECTION_THRESHOLD
+
         # Determine posture quality based on context
-        if results['is_reclined']:
+        if results["is_reclined"]:
             # In reclined position, evaluate based on the relative angle between neck and torso
-            results['good_posture'] = results['relative_neck_angle'] <= RELATIVE_NECK_ANGLE_THRESHOLD
+            results["good_posture"] = results["relative_neck_angle"] <= RELATIVE_NECK_ANGLE_THRESHOLD
         else:
             # In upright position, use the standard thresholds
-            results['good_posture'] = (
-                    results['neck_angle'] < NECK_ANGLE_THRESHOLD and
-                    results['torso_angle'] < TORSO_ANGLE_THRESHOLD
+            results["good_posture"] = (
+                results["neck_angle"] < NECK_ANGLE_THRESHOLD and results["torso_angle"] < TORSO_ANGLE_THRESHOLD
             )
 
         # Generate guidance for issues
-        if results['is_reclined']:
-            if results['relative_neck_angle'] > RELATIVE_NECK_ANGLE_THRESHOLD:
-                results['issues']['neck'] = "Align your neck with your reclined torso"
+        if results["is_reclined"]:
+            if results["relative_neck_angle"] > RELATIVE_NECK_ANGLE_THRESHOLD:
+                results["issues"]["neck"] = "Align your neck with your reclined torso"
         else:
-            if results['neck_angle'] > NECK_ANGLE_THRESHOLD:
-                results['issues']['neck'] = "Straighten your neck"
+            if results["neck_angle"] > NECK_ANGLE_THRESHOLD:
+                results["issues"]["neck"] = "Straighten your neck"
 
-            if results['torso_angle'] > TORSO_ANGLE_THRESHOLD:
-                results['issues']['torso'] = "Sit upright"
+            if results["torso_angle"] > TORSO_ANGLE_THRESHOLD:
+                results["issues"]["torso"] = "Sit upright"
 
-        if results['shoulder_offset'] >= 100:
-            results['issues']['shoulders'] = "Level your shoulders"
+        if results["shoulder_offset"] >= 100:
+            results["issues"]["shoulders"] = "Level your shoulders"
 
         return results

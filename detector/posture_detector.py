@@ -1,6 +1,7 @@
 """
 Main posture detection module that integrates camera capture and posture analysis.
 """
+
 import signal
 import sys
 import time
@@ -8,14 +9,16 @@ import time
 import cv2
 import mediapipe as mp
 
-from config.settings import (
-    WARNING_TIME_THRESHOLD, WARNING_COOLDOWN, COLORS, FONT_FACE, CAMERA_FPS
-)
+from config.settings import CAMERA_FPS, COLORS, FONT_FACE, WARNING_COOLDOWN, WARNING_TIME_THRESHOLD
 from detector.posture_analyzer import PostureAnalyzer
 from utils.visualization import (
-    draw_landmarks, draw_posture_lines, draw_angle_text,
-    draw_posture_guidance, draw_status_bar, draw_posture_indicator,
-    get_optimal_font_scale
+    draw_angle_text,
+    draw_landmarks,
+    draw_posture_guidance,
+    draw_posture_indicator,
+    draw_posture_lines,
+    draw_status_bar,
+    get_optimal_font_scale,
 )
 
 
@@ -53,7 +56,7 @@ class PostureDetector:
 
         # Window resize control
         self.resize_mode = False
-        self.window_name = 'Posture Detection'
+        self.window_name = "Posture Detection"
 
     def cleanup_and_exit(self, signum=None, frame=None):
         """Clean up resources and exit the program"""
@@ -90,49 +93,53 @@ class PostureDetector:
 
         try:
             # Left shoulder
-            landmarks['l_shoulder'] = (
+            landmarks["l_shoulder"] = (
                 int(lm.landmark[lmPose.LEFT_SHOULDER].x * frame_width),
-                int(lm.landmark[lmPose.LEFT_SHOULDER].y * frame_height)
+                int(lm.landmark[lmPose.LEFT_SHOULDER].y * frame_height),
             )
 
             # Right shoulder
-            landmarks['r_shoulder'] = (
+            landmarks["r_shoulder"] = (
                 int(lm.landmark[lmPose.RIGHT_SHOULDER].x * frame_width),
-                int(lm.landmark[lmPose.RIGHT_SHOULDER].y * frame_height)
+                int(lm.landmark[lmPose.RIGHT_SHOULDER].y * frame_height),
             )
 
             # Both ears for better detection regardless of webcam position
-            landmarks['l_ear'] = (
+            landmarks["l_ear"] = (
                 int(lm.landmark[lmPose.LEFT_EAR].x * frame_width),
-                int(lm.landmark[lmPose.LEFT_EAR].y * frame_height)
+                int(lm.landmark[lmPose.LEFT_EAR].y * frame_height),
             )
-            
-            landmarks['r_ear'] = (
+
+            landmarks["r_ear"] = (
                 int(lm.landmark[lmPose.RIGHT_EAR].x * frame_width),
-                int(lm.landmark[lmPose.RIGHT_EAR].y * frame_height)
+                int(lm.landmark[lmPose.RIGHT_EAR].y * frame_height),
             )
 
             # Left hip
-            landmarks['l_hip'] = (
+            landmarks["l_hip"] = (
                 int(lm.landmark[lmPose.LEFT_HIP].x * frame_width),
-                int(lm.landmark[lmPose.LEFT_HIP].y * frame_height)
+                int(lm.landmark[lmPose.LEFT_HIP].y * frame_height),
             )
 
             # Right hip
-            landmarks['r_hip'] = (
+            landmarks["r_hip"] = (
                 int(lm.landmark[lmPose.RIGHT_HIP].x * frame_width),
-                int(lm.landmark[lmPose.RIGHT_HIP].y * frame_height)
+                int(lm.landmark[lmPose.RIGHT_HIP].y * frame_height),
             )
-            
+
             # Calculate visibility scores for ear landmarks
             # Higher score = more visible/reliable
-            l_ear_vis = lm.landmark[lmPose.LEFT_EAR].visibility if hasattr(lm.landmark[lmPose.LEFT_EAR], 'visibility') else 0
-            r_ear_vis = lm.landmark[lmPose.RIGHT_EAR].visibility if hasattr(lm.landmark[lmPose.RIGHT_EAR], 'visibility') else 0
-            
+            l_ear_vis = (
+                lm.landmark[lmPose.LEFT_EAR].visibility if hasattr(lm.landmark[lmPose.LEFT_EAR], "visibility") else 0
+            )
+            r_ear_vis = (
+                lm.landmark[lmPose.RIGHT_EAR].visibility if hasattr(lm.landmark[lmPose.RIGHT_EAR], "visibility") else 0
+            )
+
             # Add information about which ear is more visible (useful for analyzing posture)
-            landmarks['primary_ear'] = 'left' if l_ear_vis >= r_ear_vis else 'right'
-            landmarks['l_ear_visibility'] = l_ear_vis
-            landmarks['r_ear_visibility'] = r_ear_vis
+            landmarks["primary_ear"] = "left" if l_ear_vis >= r_ear_vis else "right"
+            landmarks["l_ear_visibility"] = l_ear_vis
+            landmarks["r_ear_visibility"] = r_ear_vis
 
             return landmarks
 
@@ -163,8 +170,15 @@ class PostureDetector:
 
         # If no pose detected, return the original frame with message
         if not result.pose_landmarks:
-            cv2.putText(frame, "No pose detected", (10, 30), FONT_FACE,
-                        font_scale, COLORS['red'], thickness)
+            cv2.putText(
+                frame,
+                "No pose detected",
+                (10, 30),
+                FONT_FACE,
+                font_scale,
+                COLORS["red"],
+                thickness,
+            )
             return frame
 
         # Extract landmarks
@@ -172,8 +186,15 @@ class PostureDetector:
 
         # If landmarks extraction failed, return original frame
         if not landmarks:
-            cv2.putText(frame, "Landmark extraction failed", (10, 30),
-                        FONT_FACE, font_scale, COLORS['red'], thickness)
+            cv2.putText(
+                frame,
+                "Landmark extraction failed",
+                (10, 30),
+                FONT_FACE,
+                font_scale,
+                COLORS["red"],
+                thickness,
+            )
             return frame
 
         # Analyze posture
@@ -183,18 +204,18 @@ class PostureDetector:
         draw_landmarks(frame, landmarks)
 
         # Update frame counters based on posture quality
-        if analysis_results['good_posture']:
+        if analysis_results["good_posture"]:
             self.bad_frames = 0
             self.good_frames += 1
 
             # Draw lines with good posture color
-            draw_posture_lines(frame, landmarks, COLORS['green'])
+            draw_posture_lines(frame, landmarks, COLORS["green"])
         else:
             self.good_frames = 0
             self.bad_frames += 1
 
             # Draw lines with bad posture color
-            draw_posture_lines(frame, landmarks, COLORS['red'])
+            draw_posture_lines(frame, landmarks, COLORS["red"])
 
             # Check if warning should be sent
             bad_time = self.bad_frames / CAMERA_FPS
@@ -202,20 +223,21 @@ class PostureDetector:
                 self.send_warning()
 
         # Calculate timing values for UI
-        analysis_results['good_time'] = (1 / CAMERA_FPS) * self.good_frames
-        analysis_results['bad_time'] = (1 / CAMERA_FPS) * self.bad_frames
+        analysis_results["good_time"] = (1 / CAMERA_FPS) * self.good_frames
+        analysis_results["bad_time"] = (1 / CAMERA_FPS) * self.bad_frames
 
         # Draw posture angles
-        color = COLORS['light_green'] if analysis_results['good_posture'] else COLORS['red']
-        
+        color = COLORS["light_green"] if analysis_results["good_posture"] else COLORS["red"]
+
         # Update landmarks with reclined status for visualization
-        landmarks['is_reclined'] = analysis_results['is_reclined']
-        
+        landmarks["is_reclined"] = analysis_results["is_reclined"]
+
         draw_angle_text(
-            frame, landmarks,
-            analysis_results['neck_angle'],
-            analysis_results['torso_angle'],
-            color
+            frame,
+            landmarks,
+            analysis_results["neck_angle"],
+            analysis_results["torso_angle"],
+            color,
         )
 
         # Add main angle text at top
@@ -223,13 +245,13 @@ class PostureDetector:
         cv2.putText(frame, angle_text, (10, 30), FONT_FACE, font_scale, color, thickness)
 
         # Draw posture indicator (GOOD/BAD)
-        draw_posture_indicator(frame, analysis_results['good_posture'])
+        draw_posture_indicator(frame, analysis_results["good_posture"])
 
         # Draw status bar
         draw_status_bar(frame, analysis_results)
 
         # Draw posture correction guidance if enabled
-        if self.show_guidance and not analysis_results['good_posture']:
+        if self.show_guidance and not analysis_results["good_posture"]:
             frame = draw_posture_guidance(frame, analysis_results)
 
         return frame
@@ -244,16 +266,16 @@ class PostureDetector:
         Returns:
             Boolean: True to continue, False to exit
         """
-        if key == ord('q'):
+        if key == ord("q"):
             return False
-        elif key == ord('r'):
+        elif key == ord("r"):
             # Toggle resize mode
             self.resize_mode = not self.resize_mode
             mode_text = "ON" if self.resize_mode else "OFF"
             print(f"Resize mode: {mode_text}")
             if self.resize_mode:
                 print("Use arrow keys to resize the window. Press 'r' again to exit resize mode.")
-        elif key == ord('f'):
+        elif key == ord("f"):
             # Toggle fullscreen
             current_prop = cv2.getWindowProperty(self.window_name, cv2.WND_PROP_FULLSCREEN)
             if current_prop == cv2.WINDOW_NORMAL:
@@ -264,16 +286,19 @@ class PostureDetector:
                 print("Fullscreen mode disabled")
         elif self.resize_mode:
             # Handle resize control
-            width, height = self.camera_manager.frame_width, self.camera_manager.frame_height
+            width, height = (
+                self.camera_manager.frame_width,
+                self.camera_manager.frame_height,
+            )
 
             # Adjust dimensions based on arrow keys
-            if key == 82 or key == ord('w'):  # Up arrow or 'w'
+            if key == 82 or key == ord("w"):  # Up arrow or 'w'
                 height = int(height * 1.1)
-            elif key == 84 or key == ord('s'):  # Down arrow or 's'
+            elif key == 84 or key == ord("s"):  # Down arrow or 's'
                 height = int(height * 0.9)
-            elif key == 83 or key == ord('d'):  # Right arrow or 'd'
+            elif key == 83 or key == ord("d"):  # Right arrow or 'd'
                 width = int(width * 1.1)
-            elif key == 81 or key == ord('a'):  # Left arrow or 'a'
+            elif key == 81 or key == ord("a"):  # Left arrow or 'a'
                 width = int(width * 0.9)
 
             # Apply new dimensions if changed
