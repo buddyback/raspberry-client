@@ -60,33 +60,73 @@ class PostureAnalyzer:
             'torso_angle': None,
             'shoulder_offset': None,
             'good_posture': False,
-            'issues': {}
+            'issues': {},
+            'webcam_position': None
         }
 
         # Extract key landmarks
         l_shoulder = landmarks.get('l_shoulder')
         r_shoulder = landmarks.get('r_shoulder')
         l_ear = landmarks.get('l_ear')
+        r_ear = landmarks.get('r_ear')
         l_hip = landmarks.get('l_hip')
+        r_hip = landmarks.get('r_hip')
+        
+        # Get visibility information
+        primary_ear = landmarks.get('primary_ear', 'left')  # Default to left if not specified
+        l_ear_vis = landmarks.get('l_ear_visibility', 0)
+        r_ear_vis = landmarks.get('r_ear_visibility', 0)
+
+        # Determine webcam position relative to the user
+        # Higher visibility on left side means webcam is on the right and vice versa
+        if l_ear_vis > r_ear_vis:
+            results['webcam_position'] = 'right'  # If left ear is more visible, webcam is on right
+        else:
+            results['webcam_position'] = 'left'   # If right ear is more visible, webcam is on left
 
         # Check if all required landmarks are available
-        if None in [l_shoulder, l_ear, l_hip]:
+        if None in [l_shoulder, r_shoulder] or (l_ear is None and r_ear is None) or (l_hip is None and r_hip is None):
             return results
 
         # Unpack coordinates
         l_shldr_x, l_shldr_y = l_shoulder
-        l_ear_x, l_ear_y = l_ear
-        l_hip_x, l_hip_y = l_hip
+        r_shldr_x, r_shldr_y = r_shoulder
+        
+        # Use the more visible ear for neck angle calculation
+        if primary_ear == 'left' and l_ear is not None:
+            ear_x, ear_y = l_ear
+            shoulder_x, shoulder_y = l_shoulder  # Use left shoulder with left ear
+        elif r_ear is not None:
+            ear_x, ear_y = r_ear
+            shoulder_x, shoulder_y = r_shoulder  # Use right shoulder with right ear
+        else:
+            # Fallback to whatever ear is available
+            if l_ear is not None:
+                ear_x, ear_y = l_ear
+                shoulder_x, shoulder_y = l_shoulder
+            else:
+                ear_x, ear_y = r_ear
+                shoulder_x, shoulder_y = r_shoulder
+        
+        # Use the more visible hip
+        if primary_ear == 'left' and l_hip is not None:  # Assume if left ear is more visible, left hip might be too
+            hip_x, hip_y = l_hip
+        elif r_hip is not None:
+            hip_x, hip_y = r_hip
+        else:
+            # Fallback to whatever hip is available
+            if l_hip is not None:
+                hip_x, hip_y = l_hip
+            else:
+                hip_x, hip_y = r_hip
 
-        # Calculate shoulder offset if right shoulder is available
-        if r_shoulder is not None:
-            r_shldr_x, r_shldr_y = r_shoulder
-            results['shoulder_offset'] = self.calculate_distance(
-                l_shldr_x, l_shldr_y, r_shldr_x, r_shldr_y)
+        # Calculate shoulder offset
+        results['shoulder_offset'] = self.calculate_distance(
+            l_shldr_x, l_shldr_y, r_shldr_x, r_shldr_y)
 
         # Calculate angles
-        results['neck_angle'] = self.calculate_angle(l_shldr_x, l_shldr_y, l_ear_x, l_ear_y)
-        results['torso_angle'] = self.calculate_angle(l_hip_x, l_hip_y, l_shldr_x, l_shldr_y)
+        results['neck_angle'] = self.calculate_angle(shoulder_x, shoulder_y, ear_x, ear_y)
+        results['torso_angle'] = self.calculate_angle(hip_x, hip_y, shoulder_x, shoulder_y)
 
         # Determine posture quality
         results['good_posture'] = (
@@ -101,7 +141,7 @@ class PostureAnalyzer:
         if results['torso_angle'] > TORSO_ANGLE_THRESHOLD:
             results['issues']['torso'] = "Sit upright"
 
-        if results['shoulder_offset'] is not None and results['shoulder_offset'] >= 100:
+        if results['shoulder_offset'] >= 100:
             results['issues']['shoulders'] = "Level your shoulders"
 
         return results

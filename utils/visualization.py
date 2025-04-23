@@ -33,10 +33,17 @@ def draw_landmarks(frame, landmarks, color=COLORS['yellow']):
         landmarks: Dictionary of landmark coordinates
         color: Color to use for drawing
     """
-    for name, (x, y) in landmarks.items():
-        if x is not None and y is not None:
-            radius = max(3, int(frame.shape[1] / 100))  # Scale circle radius to frame
-            cv2.circle(frame, (x, y), radius, color, -1)
+    for name, value in landmarks.items():
+        # Only process coordinate pairs (x,y), skip metadata fields
+        if name in ['primary_ear', 'l_ear_visibility', 'r_ear_visibility']:
+            continue
+            
+        # Handle coordinate pairs
+        if isinstance(value, tuple) and len(value) == 2:
+            x, y = value
+            if x is not None and y is not None:
+                radius = max(3, int(frame.shape[1] / 100))  # Scale circle radius to frame
+                cv2.circle(frame, (x, y), radius, color, -1)
 
 
 def draw_posture_lines(frame, landmarks, color):
@@ -50,31 +57,63 @@ def draw_posture_lines(frame, landmarks, color):
     """
     # Extract coordinates
     l_shldr = landmarks.get('l_shoulder', (None, None))
+    r_shldr = landmarks.get('r_shoulder', (None, None))
     l_ear = landmarks.get('l_ear', (None, None))
+    r_ear = landmarks.get('r_ear', (None, None))
     l_hip = landmarks.get('l_hip', (None, None))
-
+    r_hip = landmarks.get('r_hip', (None, None))
+    
+    # Get the primary ear (more visible) for drawing lines
+    primary_ear = landmarks.get('primary_ear', 'left')
+    
     # Set line thickness based on frame size
     thickness = max(2, int(frame.shape[1] / 320))
 
     # Create vertical reference points - adjust vertical distance based on frame size
     vert_offset = int(frame.shape[0] / 5)
-    l_shldr_ref = (l_shldr[0], l_shldr[1] - vert_offset) if all(x is not None for x in l_shldr) else (None, None)
-    l_hip_ref = (l_hip[0], l_hip[1] - vert_offset) if all(x is not None for x in l_hip) else (None, None)
+    
+    # Choose which side to use for visualization based on visibility
+    ear = None
+    shoulder = None
+    hip = None
+    
+    if primary_ear == 'left':
+        # Use left side if available
+        ear = l_ear if l_ear[0] is not None else r_ear
+        shoulder = l_shldr if l_shldr[0] is not None else r_shldr
+        hip = l_hip if l_hip[0] is not None else r_hip
+    else:
+        # Use right side if available
+        ear = r_ear if r_ear[0] is not None else l_ear
+        shoulder = r_shldr if r_shldr[0] is not None else l_shldr
+        hip = r_hip if r_hip[0] is not None else l_hip
+    
+    # Skip if we couldn't find valid landmarks
+    if None in [ear, shoulder, hip]:
+        return
+        
+    # Skip if any of the landmarks have None coordinates
+    if None in ear or None in shoulder or None in hip:
+        return
+    
+    # Create reference points for the selected side
+    shoulder_ref = (shoulder[0], shoulder[1] - vert_offset)
+    hip_ref = (hip[0], hip[1] - vert_offset)
 
     # Draw reference points
-    if all(x is not None for x in l_shldr_ref):
-        radius = max(3, int(frame.shape[1] / 100))
-        cv2.circle(frame, l_shldr_ref, radius, COLORS['yellow'], -1)
-    if all(x is not None for x in l_hip_ref):
-        radius = max(3, int(frame.shape[1] / 100))
-        cv2.circle(frame, l_hip_ref, radius, COLORS['yellow'], -1)
+    radius = max(3, int(frame.shape[1] / 100))
+    cv2.circle(frame, shoulder_ref, radius, COLORS['yellow'], -1)
+    cv2.circle(frame, hip_ref, radius, COLORS['yellow'], -1)
 
     # Draw lines
-    line_pairs = [(l_shldr, l_ear), (l_shldr, l_shldr_ref), (l_hip, l_shldr), (l_hip, l_hip_ref)]
+    line_pairs = [(shoulder, ear), (shoulder, shoulder_ref), (hip, shoulder), (hip, hip_ref)]
 
     for start, end in line_pairs:
-        if all(x is not None for x in start) and all(x is not None for x in end):
-            cv2.line(frame, start, end, color, thickness)
+        cv2.line(frame, start, end, color, thickness)
+            
+    # Draw shoulder line to show alignment if both shoulders are available
+    if all(x is not None for x in l_shldr) and all(x is not None for x in r_shldr):
+        cv2.line(frame, l_shldr, r_shldr, color, thickness)
 
 
 def draw_angle_text(frame, landmarks, neck_angle, torso_angle, color):
@@ -92,18 +131,33 @@ def draw_angle_text(frame, landmarks, neck_angle, torso_angle, color):
     font_scale = get_optimal_font_scale(w)
     thickness = max(1, int(w / 640))
 
-    l_shldr = landmarks.get('l_shoulder')
-    l_hip = landmarks.get('l_hip')
+    # Get the primary ear (more visible) for text positioning
+    primary_ear = landmarks.get('primary_ear', 'left')
+    
+    # Choose which side to use for visualization based on visibility
+    if primary_ear == 'left':
+        shoulder = landmarks.get('l_shoulder')
+        hip = landmarks.get('l_hip')
+    else:
+        shoulder = landmarks.get('r_shoulder')
+        hip = landmarks.get('r_hip')
+
+    # If preferred side isn't available, try the other side
+    if shoulder is None:
+        shoulder = landmarks.get('r_shoulder' if primary_ear == 'left' else 'l_shoulder')
+    
+    if hip is None:
+        hip = landmarks.get('r_hip' if primary_ear == 'left' else 'l_hip')
 
     # Display angles next to landmarks with proper positioning
-    if l_shldr is not None:
+    if shoulder is not None and all(x is not None for x in shoulder):
         # Ensure text stays within frame boundaries
-        x_pos = min(l_shldr[0] + 10, w - 40)
-        cv2.putText(frame, str(int(neck_angle)), (x_pos, l_shldr[1]), FONT_FACE, font_scale, color, thickness)
+        x_pos = min(shoulder[0] + 10, w - 40)
+        cv2.putText(frame, str(int(neck_angle)), (x_pos, shoulder[1]), FONT_FACE, font_scale, color, thickness)
 
-    if l_hip is not None:
-        x_pos = min(l_hip[0] + 10, w - 40)
-        cv2.putText(frame, str(int(torso_angle)), (x_pos, l_hip[1]), FONT_FACE, font_scale, color, thickness)
+    if hip is not None and all(x is not None for x in hip):
+        x_pos = min(hip[0] + 10, w - 40)
+        cv2.putText(frame, str(int(torso_angle)), (x_pos, hip[1]), FONT_FACE, font_scale, color, thickness)
 
 
 def draw_posture_guidance(frame, analysis_results):
@@ -200,6 +254,16 @@ def draw_status_bar(frame, analysis_results):
     text_size = cv2.getTextSize(align_text, FONT_FACE, font_scale, thickness)[0]
     x_pos = w - text_size[0] - 10
     cv2.putText(frame, align_text, (max(10, x_pos), y_pos), FONT_FACE, font_scale, align_color, thickness)
+    
+    # Display webcam position at the bottom-center
+    webcam_pos = analysis_results.get('webcam_position', 'unknown')
+    if webcam_pos != 'unknown':
+        pos_text = f"Webcam position: {webcam_pos.upper()}"
+        # Calculate text position to center it
+        text_size = cv2.getTextSize(pos_text, FONT_FACE, font_scale*0.8, thickness)[0]
+        x_pos = (w - text_size[0]) // 2
+        y_pos_webcam = h - int(status_height / 4)  # Position below the main status text
+        cv2.putText(frame, pos_text, (x_pos, y_pos_webcam), FONT_FACE, font_scale*0.8, COLORS['yellow'], thickness)
 
 
 def draw_posture_indicator(frame, good_posture):

@@ -101,10 +101,15 @@ class PostureDetector:
                 int(lm.landmark[lmPose.RIGHT_SHOULDER].y * frame_height)
             )
 
-            # Left ear
+            # Both ears for better detection regardless of webcam position
             landmarks['l_ear'] = (
                 int(lm.landmark[lmPose.LEFT_EAR].x * frame_width),
                 int(lm.landmark[lmPose.LEFT_EAR].y * frame_height)
+            )
+            
+            landmarks['r_ear'] = (
+                int(lm.landmark[lmPose.RIGHT_EAR].x * frame_width),
+                int(lm.landmark[lmPose.RIGHT_EAR].y * frame_height)
             )
 
             # Left hip
@@ -118,6 +123,16 @@ class PostureDetector:
                 int(lm.landmark[lmPose.RIGHT_HIP].x * frame_width),
                 int(lm.landmark[lmPose.RIGHT_HIP].y * frame_height)
             )
+            
+            # Calculate visibility scores for ear landmarks
+            # Higher score = more visible/reliable
+            l_ear_vis = lm.landmark[lmPose.LEFT_EAR].visibility if hasattr(lm.landmark[lmPose.LEFT_EAR], 'visibility') else 0
+            r_ear_vis = lm.landmark[lmPose.RIGHT_EAR].visibility if hasattr(lm.landmark[lmPose.RIGHT_EAR], 'visibility') else 0
+            
+            # Add information about which ear is more visible (useful for analyzing posture)
+            landmarks['primary_ear'] = 'left' if l_ear_vis >= r_ear_vis else 'right'
+            landmarks['l_ear_visibility'] = l_ear_vis
+            landmarks['r_ear_visibility'] = r_ear_vis
 
             return landmarks
 
