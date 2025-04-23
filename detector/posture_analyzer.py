@@ -3,7 +3,10 @@ Posture analysis module for detecting posture issues and providing guidance.
 """
 import math
 
-from config.settings import NECK_ANGLE_THRESHOLD, TORSO_ANGLE_THRESHOLD
+from config.settings import (
+    NECK_ANGLE_THRESHOLD, TORSO_ANGLE_THRESHOLD,
+    RELATIVE_NECK_ANGLE_THRESHOLD, RECLINE_DETECTION_THRESHOLD
+)
 
 
 class PostureAnalyzer:
@@ -61,7 +64,9 @@ class PostureAnalyzer:
             'shoulder_offset': None,
             'good_posture': False,
             'issues': {},
-            'webcam_position': None
+            'webcam_position': None,
+            'is_reclined': False,
+            'relative_neck_angle': None
         }
 
         # Extract key landmarks
@@ -127,19 +132,34 @@ class PostureAnalyzer:
         # Calculate angles
         results['neck_angle'] = self.calculate_angle(shoulder_x, shoulder_y, ear_x, ear_y)
         results['torso_angle'] = self.calculate_angle(hip_x, hip_y, shoulder_x, shoulder_y)
-
-        # Determine posture quality
-        results['good_posture'] = (
-                results['neck_angle'] < NECK_ANGLE_THRESHOLD and
-                results['torso_angle'] < TORSO_ANGLE_THRESHOLD
-        )
+        
+        # Calculate relative angle between neck and torso
+        results['relative_neck_angle'] = abs(results['neck_angle'] - results['torso_angle'])
+        
+        # Detect if the person is in a reclined position
+        results['is_reclined'] = results['torso_angle'] >= RECLINE_DETECTION_THRESHOLD
+        
+        # Determine posture quality based on context
+        if results['is_reclined']:
+            # In reclined position, evaluate based on the relative angle between neck and torso
+            results['good_posture'] = results['relative_neck_angle'] <= RELATIVE_NECK_ANGLE_THRESHOLD
+        else:
+            # In upright position, use the standard thresholds
+            results['good_posture'] = (
+                    results['neck_angle'] < NECK_ANGLE_THRESHOLD and
+                    results['torso_angle'] < TORSO_ANGLE_THRESHOLD
+            )
 
         # Generate guidance for issues
-        if results['neck_angle'] > NECK_ANGLE_THRESHOLD:
-            results['issues']['neck'] = "Straighten your neck"
+        if results['is_reclined']:
+            if results['relative_neck_angle'] > RELATIVE_NECK_ANGLE_THRESHOLD:
+                results['issues']['neck'] = "Align your neck with your reclined torso"
+        else:
+            if results['neck_angle'] > NECK_ANGLE_THRESHOLD:
+                results['issues']['neck'] = "Straighten your neck"
 
-        if results['torso_angle'] > TORSO_ANGLE_THRESHOLD:
-            results['issues']['torso'] = "Sit upright"
+            if results['torso_angle'] > TORSO_ANGLE_THRESHOLD:
+                results['issues']['torso'] = "Sit upright"
 
         if results['shoulder_offset'] >= 100:
             results['issues']['shoulders'] = "Level your shoulders"

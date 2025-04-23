@@ -153,11 +153,21 @@ def draw_angle_text(frame, landmarks, neck_angle, torso_angle, color):
     if shoulder is not None and all(x is not None for x in shoulder):
         # Ensure text stays within frame boundaries
         x_pos = min(shoulder[0] + 10, w - 40)
-        cv2.putText(frame, str(int(neck_angle)), (x_pos, shoulder[1]), FONT_FACE, font_scale, color, thickness)
+        cv2.putText(frame, f"{int(neck_angle)}°", (x_pos, shoulder[1]), FONT_FACE, font_scale, color, thickness)
 
     if hip is not None and all(x is not None for x in hip):
         x_pos = min(hip[0] + 10, w - 40)
-        cv2.putText(frame, str(int(torso_angle)), (x_pos, hip[1]), FONT_FACE, font_scale, color, thickness)
+        cv2.putText(frame, f"{int(torso_angle)}°", (x_pos, hip[1]), FONT_FACE, font_scale, color, thickness)
+        
+    # Display relative angle if in reclined mode
+    is_reclined = landmarks.get('is_reclined', False)
+    if is_reclined and shoulder is not None and hip is not None:
+        relative_angle = abs(neck_angle - torso_angle)
+        midpoint_y = (shoulder[1] + hip[1]) // 2
+        midpoint_x = (shoulder[0] + hip[0]) // 2
+        x_pos = min(midpoint_x + 10, w - 120)
+        cv2.putText(frame, f"Rel: {int(relative_angle)}°", (x_pos, midpoint_y), 
+                  FONT_FACE, font_scale, COLORS['yellow'], thickness)
 
 
 def draw_posture_guidance(frame, analysis_results):
@@ -225,6 +235,7 @@ def draw_status_bar(frame, analysis_results):
     # Extract timing information
     good_time = analysis_results.get('good_time', 0)
     bad_time = analysis_results.get('bad_time', 0)
+    is_reclined = analysis_results.get('is_reclined', False)
 
     # Scale status bar height based on frame size
     status_height = int(h / 12)
@@ -257,8 +268,14 @@ def draw_status_bar(frame, analysis_results):
     
     # Display webcam position at the bottom-center
     webcam_pos = analysis_results.get('webcam_position', 'unknown')
+    reclined_status = "RECLINED" if is_reclined else ""
+    
     if webcam_pos != 'unknown':
-        pos_text = f"Webcam position: {webcam_pos.upper()}"
+        if reclined_status:
+            pos_text = f"Webcam: {webcam_pos.upper()} | {reclined_status}"
+        else:
+            pos_text = f"Webcam position: {webcam_pos.upper()}"
+            
         # Calculate text position to center it
         text_size = cv2.getTextSize(pos_text, FONT_FACE, font_scale*0.8, thickness)[0]
         x_pos = (w - text_size[0]) // 2

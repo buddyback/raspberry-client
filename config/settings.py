@@ -10,6 +10,8 @@ CAMERA_FPS = 30
 # Posture thresholds
 NECK_ANGLE_THRESHOLD = 15
 TORSO_ANGLE_THRESHOLD = 25
+RELATIVE_NECK_ANGLE_THRESHOLD = 20  # Maximum difference between neck and torso angles for reclined position
+RECLINE_DETECTION_THRESHOLD = 40  # Minimum torso angle to be considered in reclined position
 
 # Warning settings
 WARNING_TIME_THRESHOLD = 60  # seconds
