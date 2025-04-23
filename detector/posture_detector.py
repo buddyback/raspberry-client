@@ -229,8 +229,8 @@ class PostureDetector:
         # Draw posture angles
         color = COLORS["light_green"] if analysis_results["good_posture"] else COLORS["red"]
 
-        # Update landmarks with reclined status for visualization
-        landmarks["is_reclined"] = analysis_results["is_reclined"]
+        # Update landmarks with head tilted back status for visualization
+        landmarks["is_head_tilted_back"] = analysis_results["is_head_tilted_back"]
 
         draw_angle_text(
             frame,

@@ -180,9 +180,10 @@ def draw_angle_text(frame, landmarks, neck_angle, torso_angle, color):
             thickness,
         )
 
-    # Display relative angle if in reclined mode
-    is_reclined = landmarks.get("is_reclined", False)
-    if is_reclined and shoulder is not None and hip is not None:
+    # Display relative angle if head is tilted back
+    is_head_tilted_back = landmarks.get("is_head_tilted_back", False)
+    
+    if is_head_tilted_back and shoulder is not None and hip is not None:
         relative_angle = abs(neck_angle - torso_angle)
         midpoint_y = (shoulder[1] + hip[1]) // 2
         midpoint_x = (shoulder[0] + hip[0]) // 2
@@ -277,7 +278,7 @@ def draw_status_bar(frame, analysis_results):
     # Extract timing information
     good_time = analysis_results.get("good_time", 0)
     bad_time = analysis_results.get("bad_time", 0)
-    is_reclined = analysis_results.get("is_reclined", False)
+    is_head_tilted_back = analysis_results.get("is_head_tilted_back", False)
 
     # Scale status bar height based on frame size
     status_height = int(h / 12)
@@ -334,11 +335,13 @@ def draw_status_bar(frame, analysis_results):
 
     # Display webcam position at the bottom-center
     webcam_pos = analysis_results.get("webcam_position", "unknown")
-    reclined_status = "RECLINED" if is_reclined else ""
+    
+    # Create status text with head tilt information
+    status_text = "HEAD BACK" if is_head_tilted_back else ""
 
     if webcam_pos != "unknown":
-        if reclined_status:
-            pos_text = f"Webcam: {webcam_pos.upper()} | {reclined_status}"
+        if status_text:
+            pos_text = f"Webcam: {webcam_pos.upper()} | {status_text}"
         else:
             pos_text = f"Webcam position: {webcam_pos.upper()}"
 
