@@ -7,7 +7,7 @@ import cv2
 class CameraManager:
     """Manages camera operations and frame processing"""
 
-    def __init__(self, camera_index=0, frame_width=640, frame_height=480):
+    def __init__(self, camera_index=0, frame_width=640, frame_height=480, rotation=0):
         """
         Initialize the camera manager
 
@@ -15,10 +15,12 @@ class CameraManager:
             camera_index: Index of the camera to use (default: 0)
             frame_width: Width of the camera frame (default: 640)
             frame_height: Height of the camera frame (default: 480)
+            rotation: Rotation angle in degrees (must be 0, 90, 180, or 270)
         """
         self.camera_index = camera_index
         self.frame_width = frame_width
         self.frame_height = frame_height
+        self.rotation = rotation
         self.cap = None
 
     def initialize(self):
@@ -48,7 +50,18 @@ class CameraManager:
         if self.cap is None:
             raise RuntimeError("Camera not initialized")
 
-        return self.cap.read()
+        ret, frame = self.cap.read()
+        
+        if ret and self.rotation != 0:
+            # Apply rotation if needed
+            if self.rotation == 90:
+                frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+            elif self.rotation == 180:
+                frame = cv2.rotate(frame, cv2.ROTATE_180)
+            elif self.rotation == 270:
+                frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                
+        return ret, frame
 
     def release(self):
         """Release the camera resources"""

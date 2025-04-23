@@ -19,6 +19,8 @@ def parse_arguments():
                         help=f'Camera frame height (default: {DEFAULT_CAMERA_HEIGHT})')
     parser.add_argument('--camera', type=int, default=0, help='Camera index (default: 0)')
     parser.add_argument('--no-guidance', action='store_true', help='Disable posture correction guidance')
+    parser.add_argument('--rotate', type=int, default=0, choices=[0, 90, 180, 270], 
+                        help='Rotate webcam image by specified degrees (default: 0)')
 
     return parser.parse_args()
 
@@ -29,7 +31,8 @@ def main():
 
     try:
         # Initialize camera with specified dimensions
-        camera_manager = CameraManager(camera_index=args.camera, frame_width=args.width, frame_height=args.height)
+        camera_manager = CameraManager(camera_index=args.camera, frame_width=args.width, 
+                                      frame_height=args.height, rotation=args.rotate)
 
         # Initialize posture detector
         detector = PostureDetector(camera_manager=camera_manager, show_guidance=not args.no_guidance)
