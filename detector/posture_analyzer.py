@@ -135,18 +135,18 @@ class PostureAnalyzer:
 
         # Calculate relative angle between neck and torso
         results["relative_neck_angle"] = abs(results["neck_angle"] - results["torso_angle"])
-        
+
         # Detect if the neck is tilted back (head leaned back)
         # Consider two key factors for a tilted back detection:
         #  1. Is the torso angle relatively large? (indicates leaning back)
         #  2. Is the neck angle reasonably aligned with the torso?
         torso_leaning_back = results["torso_angle"] > 20  # Moderate recline
         neck_aligned_with_torso = results["relative_neck_angle"] <= RELATIVE_NECK_ANGLE_THRESHOLD
-        
+
         # Alternative condition: neck angle is smaller than torso angle (head is actually back)
         # This happens in a true reclined position
         neck_behind_torso = results["neck_angle"] < results["torso_angle"]
-        
+
         # Mark as tilted back if EITHER:
         # - Torso is leaning back and neck is properly aligned with it, OR
         # - Neck is clearly positioned behind the torso line

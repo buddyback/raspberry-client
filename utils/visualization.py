@@ -182,7 +182,7 @@ def draw_angle_text(frame, landmarks, neck_angle, torso_angle, color):
 
     # Display relative angle if head is tilted back
     is_head_tilted_back = landmarks.get("is_head_tilted_back", False)
-    
+
     if is_head_tilted_back and shoulder is not None and hip is not None:
         relative_angle = abs(neck_angle - torso_angle)
         midpoint_y = (shoulder[1] + hip[1]) // 2
@@ -335,7 +335,7 @@ def draw_status_bar(frame, analysis_results):
 
     # Display webcam position at the bottom-center
     webcam_pos = analysis_results.get("webcam_position", "unknown")
-    
+
     # Create status text with head tilt information
     status_text = "HEAD BACK" if is_head_tilted_back else ""
 
