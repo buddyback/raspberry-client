@@ -14,11 +14,18 @@ jobs:
     name: Code Quality Check
     runs-on: [ docker ]
     container:
-      image: python:3.12-slim
+      image: catthehacker/ubuntu:act-latest
       
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        
+      - name: Set up Python
+        run: |
+          apt-get update
+          apt-get install -y python3 python3-pip
+          ln -sf /usr/bin/python3 /usr/bin/python
+          ln -sf /usr/bin/pip3 /usr/bin/pip
         
       - name: Install dependencies
         run: |
