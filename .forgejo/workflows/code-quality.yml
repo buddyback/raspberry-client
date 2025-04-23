@@ -1,0 +1,48 @@
+# This pipeline performs code quality checks on the Python codebase
+# It runs on runners with the 'docker' tag using a Python-based Docker image
+
+name: Code Quality Analysis
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  code-quality:
+    name: Code Quality Check
+    runs-on: [ docker ]
+    container:
+      image: python:3.12-slim
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install flake8 pylint black mypy isort
+          pip install -r requirements.txt
+          
+      - name: Run Flake8
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          
+      - name: Run Pylint
+        run: |
+          pylint --disable=C0111,R0903,C0103 --ignored-modules=cv2,mediapipe --fail-under=7.0 **/*.py
+          
+      - name: Check formatting with Black
+        run: |
+          black --check --diff .
+          
+      - name: Check imports with isort
+        run: |
+          isort --check --diff .
+          
+      - name: Run type checking with mypy
+        run: |
+          mypy --ignore-missing-imports .
