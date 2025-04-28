@@ -45,5 +45,6 @@ sentencepiece==0.2.0
 six==1.17.0
 sounddevice==0.5.1
 tomlkit==0.13.2
+types-requests==2.32.0.20250328
 typing_extensions==4.13.2
 urllib3==2.4.0
