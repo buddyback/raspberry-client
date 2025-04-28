@@ -2,6 +2,7 @@
 Main posture detection module that integrates camera capture and posture analysis.
 """
 
+import os
 import signal
 import sys
 import time
@@ -9,8 +10,9 @@ import time
 import cv2
 import mediapipe as mp
 
-from config.settings import CAMERA_FPS, COLORS, FONT_FACE, WARNING_COOLDOWN, WARNING_TIME_THRESHOLD
+from config.settings import CAMERA_FPS, COLORS, FONT_FACE, SEND_INTERVAL, WARNING_COOLDOWN, WARNING_TIME_THRESHOLD
 from detector.posture_analyzer import PostureAnalyzer
+from utils.http_client import HttpClient
 from utils.visualization import (
     draw_angle_text,
     draw_landmarks,
@@ -57,6 +59,28 @@ class PostureDetector:
         # Window resize control
         self.resize_mode = False
         self.window_name = "Posture Detection"
+
+        self.old_posture = None
+
+        self.last_sent_time = time.time()
+        self.last_sent_posture = None
+        self.SEND_INTERVAL = SEND_INTERVAL  # seconds
+
+        # Initialize HTTP client for sending data
+        self.http_client = HttpClient(
+            api_key=os.getenv("API_KEY"), base_url=os.getenv("API_BASE_URL"), device_id=os.getenv("DEVICE_ID")
+        )
+
+    def _maybe_send_posture(self, current_posture, analysis_results):
+        now = time.time()
+        posture_changed = current_posture != self.last_sent_posture
+        time_passed = now - self.last_sent_time > self.SEND_INTERVAL
+
+        if posture_changed or time_passed:
+            print(f"[Posture Update] Sending data (posture changed: {posture_changed})")
+            self.http_client.send_posture_data(analysis_results)
+            self.last_sent_time = now
+            self.last_sent_posture = current_posture
 
     def cleanup_and_exit(self, signum=None, frame=None):
         """Clean up resources and exit the program"""
@@ -199,6 +223,8 @@ class PostureDetector:
 
         # Analyze posture
         analysis_results = self.analyzer.analyze_posture(landmarks)
+
+        self._maybe_send_posture(analysis_results["good_posture"], analysis_results)
 
         # Draw landmarks
         draw_landmarks(frame, landmarks)

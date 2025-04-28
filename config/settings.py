@@ -34,6 +34,23 @@ COLORS = {
 FONT_FACE = 0  # FONT_HERSHEY_SIMPLEX
 FONT_THICKNESS = 2
 
+BODY_COMPONENTS = {
+    "neck": {
+        "parameter": "neck_angle",
+        "reference": NECK_ANGLE_THRESHOLD,
+    },
+    "torso": {
+        "parameter": "torso_angle",
+        "reference": NECK_ANGLE_THRESHOLD,
+    },
+    "shoulders": {
+        "parameter": "shoulder_offset",
+        "reference": 100,
+    },
+}
+
+SEND_INTERVAL = 60  # seconds
+
 # Instruction panel settings
 PANEL_PADDING = 10
 PANEL_OPACITY = 0.7

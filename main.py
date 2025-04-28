@@ -5,9 +5,14 @@ Main entry point for the Posture Detector application.
 import argparse
 import sys
 
+from dotenv import load_dotenv
+
 from config.settings import DEFAULT_CAMERA_HEIGHT, DEFAULT_CAMERA_WIDTH
 from detector.posture_detector import PostureDetector
 from utils.camera import CameraManager
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 def parse_arguments():
