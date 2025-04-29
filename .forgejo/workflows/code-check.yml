@@ -1,7 +1,7 @@
 # This pipeline performs code quality checks on the Python codebase
 # It runs on runners with the 'docker' tag using a Python-based Docker image
 
-name: Code Quality Analysis
+name: Code Check
 
 on:
   push:
@@ -19,7 +19,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip' # caching pip dependencies
+
       - name: Install dependencies
         run: |
           pip install --upgrade pip

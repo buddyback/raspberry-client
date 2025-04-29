@@ -6,8 +6,8 @@ import math
 
 from config.settings import (
     NECK_ANGLE_THRESHOLD,
-    RELATIVE_NECK_ANGLE_THRESHOLD,
     TORSO_ANGLE_THRESHOLD,
+    MAX_SHOULDERS_DISTANCE,
 )
 
 
@@ -47,6 +47,10 @@ class PostureAnalyzer:
 
         # Calculate the angle with respect to vertical
         theta = math.acos((y2 - y1) * (-y1) / (math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) * y1))
+
+        if x2 < x1:
+            theta = -theta
+
         return int(180 / math.pi * theta)
 
     def analyze_posture(self, landmarks):
@@ -132,48 +136,28 @@ class PostureAnalyzer:
         # Calculate angles
         results["neck_angle"] = self.calculate_angle(shoulder_x, shoulder_y, ear_x, ear_y)
         results["torso_angle"] = self.calculate_angle(hip_x, hip_y, shoulder_x, shoulder_y)
+        #results["reclination"] = self.calculate_angle(
 
         # Calculate relative angle between neck and torso
         results["relative_neck_angle"] = abs(results["neck_angle"] - results["torso_angle"])
 
-        # Detect if the neck is tilted back (head leaned back)
-        # Consider two key factors for a tilted back detection:
-        #  1. Is the torso angle relatively large? (indicates leaning back)
-        #  2. Is the neck angle reasonably aligned with the torso?
-        torso_leaning_back = results["torso_angle"] > 20  # Moderate recline
-        neck_aligned_with_torso = results["relative_neck_angle"] <= RELATIVE_NECK_ANGLE_THRESHOLD
+        print(results["relative_neck_angle"])
 
         # Alternative condition: neck angle is smaller than torso angle (head is actually back)
         # This happens in a true reclined position
         neck_behind_torso = results["neck_angle"] < results["torso_angle"]
 
-        # Mark as tilted back if EITHER:
-        # - Torso is leaning back and neck is properly aligned with it, OR
-        # - Neck is clearly positioned behind the torso line
-        results["is_head_tilted_back"] = (torso_leaning_back and neck_aligned_with_torso) or neck_behind_torso
+        results["good_posture"] = (
+            results["relative_neck_angle"] < NECK_ANGLE_THRESHOLD and results["torso_angle"] < TORSO_ANGLE_THRESHOLD
+        )
 
-        # Determine posture quality based on context
-        if results["is_head_tilted_back"]:
-            # When head is tilted back, evaluate based on the relative angle
-            results["good_posture"] = results["relative_neck_angle"] <= RELATIVE_NECK_ANGLE_THRESHOLD
-        else:
-            # In standard upright position, use the standard thresholds
-            results["good_posture"] = (
-                results["neck_angle"] < NECK_ANGLE_THRESHOLD and results["torso_angle"] < TORSO_ANGLE_THRESHOLD
-            )
+        if results["relative_neck_angle"] > NECK_ANGLE_THRESHOLD:
+            results["issues"]["neck"] = "Straighten your neck"
 
-        # Generate guidance for issues
-        if results["is_head_tilted_back"]:
-            if results["relative_neck_angle"] > RELATIVE_NECK_ANGLE_THRESHOLD:
-                results["issues"]["neck"] = "Align your neck with your torso"
-        else:
-            if results["neck_angle"] > NECK_ANGLE_THRESHOLD:
-                results["issues"]["neck"] = "Straighten your neck"
+        if results["torso_angle"] > TORSO_ANGLE_THRESHOLD:
+            results["issues"]["torso"] = "Sit upright"
 
-            if results["torso_angle"] > TORSO_ANGLE_THRESHOLD:
-                results["issues"]["torso"] = "Sit upright"
-
-        if results["shoulder_offset"] >= 100:
-            results["issues"]["shoulders"] = "Level your shoulders"
+        if results["shoulder_offset"] >= MAX_SHOULDERS_DISTANCE:
+            results["issues"]["shoulders"] = "Face the screen"
 
         return results
