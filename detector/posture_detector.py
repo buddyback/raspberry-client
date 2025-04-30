@@ -72,6 +72,9 @@ class PostureDetector:
         )
 
     def _maybe_send_posture(self, current_posture, analysis_results):
+        if os.getenv("DISABLE_TELEMETRY", False):
+            return
+
         now = time.time()
         posture_changed = current_posture != self.last_sent_posture
         time_passed = now - self.last_sent_time > self.SEND_INTERVAL

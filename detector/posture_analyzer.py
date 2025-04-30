@@ -141,17 +141,27 @@ class PostureAnalyzer:
         # Calculate relative angle between neck and torso
         results["relative_neck_angle"] = abs(results["neck_angle"] - results["torso_angle"])
 
+        print("-------------------")
+        print(results["torso_angle"])
         print(results["relative_neck_angle"])
 
         # Alternative condition: neck angle is smaller than torso angle (head is actually back)
         # This happens in a true reclined position
         neck_behind_torso = results["neck_angle"] < results["torso_angle"]
 
+        # this helps a bit with reclined chairs
+        if results["torso_angle"] <= -30:
+            neck_threshold = int(NECK_ANGLE_THRESHOLD * 1.5)
+        else:
+            neck_threshold = NECK_ANGLE_THRESHOLD
+        
+        print(neck_threshold)
+
         results["good_posture"] = (
-            results["relative_neck_angle"] < NECK_ANGLE_THRESHOLD and results["torso_angle"] < TORSO_ANGLE_THRESHOLD
+            results["relative_neck_angle"] < neck_threshold and results["torso_angle"] < TORSO_ANGLE_THRESHOLD
         )
 
-        if results["relative_neck_angle"] > NECK_ANGLE_THRESHOLD:
+        if results["relative_neck_angle"] > neck_threshold:
             results["issues"]["neck"] = "Straighten your neck"
 
         if results["torso_angle"] > TORSO_ANGLE_THRESHOLD:
