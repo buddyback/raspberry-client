@@ -44,7 +44,7 @@ class PostureDetector:
 
         # Initialize MediaPipe pose detection
         self.mp_pose = mp.solutions.pose
-        self.pose = self.mp_pose.Pose(model_complexity=2)
+        self.pose = self.mp_pose.Pose(model_complexity=2, min_detection_confidence=0.7, min_tracking_confidence=0.7)
 
         # Initialize posture analyzer
         self.analyzer = PostureAnalyzer()
@@ -162,11 +162,27 @@ class PostureDetector:
             r_ear_vis = (
                 lm.landmark[lmPose.RIGHT_EAR].visibility if hasattr(lm.landmark[lmPose.RIGHT_EAR], "visibility") else 0
             )
+            l_hip_vis = (
+                lm.landmark[lmPose.LEFT_HIP].visibility if hasattr(lm.landmark[lmPose.LEFT_HIP], "visibility") else 0
+            )
+            r_hip_vis = (
+                lm.landmark[lmPose.RIGHT_HIP].visibility if hasattr(lm.landmark[lmPose.RIGHT_HIP], "visibility") else 0
+            )
+            l_shoulder_vis = (
+                lm.landmark[lmPose.LEFT_SHOULDER].visibility if hasattr(lm.landmark[lmPose.LEFT_SHOULDER], "visibility") else 0
+            )
+            r_shoulder_vis = (
+                lm.landmark[lmPose.RIGHT_SHOULDER].visibility if hasattr(lm.landmark[lmPose.RIGHT_SHOULDER], "visibility") else 0
+            )
 
             # Add information about which ear is more visible (useful for analyzing posture)
             landmarks["primary_ear"] = "left" if l_ear_vis >= r_ear_vis else "right"
             landmarks["l_ear_visibility"] = l_ear_vis
             landmarks["r_ear_visibility"] = r_ear_vis
+            landmarks["l_hip_visibility"] = l_hip_vis
+            landmarks["r_hip_visibility"] = r_hip_vis
+            landmarks["l_shoulder_visibility"] = l_shoulder_vis
+            landmarks["r_shoulder_visibility"] = r_shoulder_vis
 
             return landmarks
 

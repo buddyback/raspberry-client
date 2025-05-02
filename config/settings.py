@@ -10,7 +10,7 @@ CAMERA_FPS = 30
 # Posture thresholds
 NECK_ANGLE_THRESHOLD = 15
 TORSO_ANGLE_THRESHOLD = 10
-MAX_SHOULDERS_DISTANCE = 70
+MAX_SHOULDERS_DISTANCE = 120
 
 # Warning settings
 WARNING_TIME_THRESHOLD = 60  # seconds
@@ -45,7 +45,7 @@ BODY_COMPONENTS = {
     },
     "shoulders": {
         "parameter": "shoulder_offset",
-        "reference": 100,
+        "reference": MAX_SHOULDERS_DISTANCE,
     },
 }
 

@@ -16,6 +16,9 @@ class PostureAnalyzer:
 
     def __init__(self):
         """Initialize the posture analyzer"""
+        self.same_side_frames = -1
+        self.webcam_position = ""
+        self.webcam_placement = "good"
         pass
 
     def calculate_distance(self, x1, y1, x2, y2):
@@ -87,12 +90,42 @@ class PostureAnalyzer:
         l_ear_vis = landmarks.get("l_ear_visibility", 0)
         r_ear_vis = landmarks.get("r_ear_visibility", 0)
 
+        l_hip_vis = landmarks.get("l_hip_visibility", 0)
+        r_hip_vis = landmarks.get("r_hip_visibility", 0)
+        l_shoulder_vis = landmarks.get("l_shoulder_visibility", 0)
+        r_shoulder_vis = landmarks.get("r_shoulder_visibility", 0)
+
+
         # Determine webcam position relative to the user
         # Higher visibility on left side means webcam is on the right and vice versa
         if l_ear_vis > r_ear_vis:
-            results["webcam_position"] = "right"  # If left ear is more visible, webcam is on right
+            if self.same_side_frames == -1 or self.same_side_frames == 60:
+                self.webcam_position = "right" # If left ear is more visible, webcam is on right
+                self.same_side_frames = 0
         else:
-            results["webcam_position"] = "left"  # If right ear is more visible, webcam is on left
+            if self.same_side_frames == -1 or self.same_side_frames == 60:
+                self.webcam_position = "left" # If right ear is more visible, webcam is on left
+                self.same_side_frames = 0
+        if self.same_side_frames < 60:
+            self.same_side_frames += 1
+
+        results["webcam_position"] = self.webcam_position
+
+        results["webcam_placement"] = "good"
+        if (results["webcam_position"] == "right" and r_ear_vis < 0.99) or (results["webcam_position"] == "left" and l_ear_vis < 0.99):
+            results["webcam_placement"] = "ear"
+
+        if min(l_hip_vis, r_hip_vis) < 0.80:
+            results["webcam_placement"] = "hip"
+
+        if min(l_shoulder_vis, r_shoulder_vis) < 0.98:
+            results["webcam_placement"] = "shoulder"
+
+        if self.webcam_placement != results["webcam_placement"]:
+            print(results["webcam_placement"])
+
+        self.webcam_placement = results["webcam_placement"]
+
 
         # Check if all required landmarks are available
         if None in [l_shoulder, r_shoulder] or (l_ear is None and r_ear is None) or (l_hip is None and r_hip is None):
@@ -141,9 +174,9 @@ class PostureAnalyzer:
         # Calculate relative angle between neck and torso
         results["relative_neck_angle"] = abs(results["neck_angle"] - results["torso_angle"])
 
-        print("-------------------")
-        print(results["torso_angle"])
-        print(results["relative_neck_angle"])
+        # print("-------------------")
+        # print(results["torso_angle"])
+        # print(results["relative_neck_angle"])
 
         # Alternative condition: neck angle is smaller than torso angle (head is actually back)
         # This happens in a true reclined position
@@ -155,10 +188,10 @@ class PostureAnalyzer:
         else:
             neck_threshold = NECK_ANGLE_THRESHOLD
         
-        print(neck_threshold)
+        # print(neck_threshold)
 
         results["good_posture"] = (
-            results["relative_neck_angle"] < neck_threshold and results["torso_angle"] < TORSO_ANGLE_THRESHOLD
+            results["relative_neck_angle"] < neck_threshold and results["torso_angle"] < TORSO_ANGLE_THRESHOLD and results["shoulder_offset"] < MAX_SHOULDERS_DISTANCE
         )
 
         if results["relative_neck_angle"] > neck_threshold:
