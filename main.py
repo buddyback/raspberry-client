@@ -39,6 +39,13 @@ def parse_arguments():
         choices=[0, 90, 180, 270],
         help="Rotate webcam image by specified degrees (default: 0)",
     )
+    parser.add_argument(
+        "--model",
+        type=int,
+        default=2,
+        choices=[0, 1, 2],
+        help="MediaPipe model complexity  (default: 2)",
+    )
 
     return parser.parse_args()
 
@@ -57,7 +64,7 @@ def main():
         )
 
         # Initialize posture detector
-        detector = PostureDetector(camera_manager=camera_manager, show_guidance=not args.no_guidance)
+        detector = PostureDetector(camera_manager=camera_manager, show_guidance=not args.no_guidance, model_complexity=args.model)
 
         # Run the detector
         detector.run()

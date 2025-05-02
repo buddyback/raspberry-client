@@ -9,6 +9,7 @@ import time
 
 import cv2
 import mediapipe as mp
+from mediapipe.tasks import python
 
 from config.settings import CAMERA_FPS, COLORS, FONT_FACE, SEND_INTERVAL, WARNING_COOLDOWN, WARNING_TIME_THRESHOLD
 from detector.posture_analyzer import PostureAnalyzer
@@ -27,7 +28,7 @@ from utils.visualization import (
 class PostureDetector:
     """Main class for posture detection"""
 
-    def __init__(self, camera_manager, show_guidance=True):
+    def __init__(self, camera_manager, show_guidance=True, model_complexity=2):
         """
         Initialize posture detector
 
