@@ -10,11 +10,10 @@ import time
 
 import cv2
 import mediapipe as mp
-from mediapipe.tasks import python
 
-from config.settings import CAMERA_FPS, COLORS, FONT_FACE, SEND_INTERVAL, WARNING_COOLDOWN, WARNING_TIME_THRESHOLD
+from config.settings import CAMERA_FPS, COLORS, FONT_FACE, SEND_INTERVAL, WARNING_COOLDOWN, WARNING_TIME_THRESHOLD, \
+    BODY_COMPONENTS
 from detector.posture_analyzer import PostureAnalyzer
-from utils.http_client import HttpClient
 from utils.visualization import (
     draw_angle_text,
     draw_landmarks,
@@ -69,8 +68,41 @@ class PostureDetector:
         self.last_sent_time = time.time()
         self.last_sent_posture = None
         self.SEND_INTERVAL = SEND_INTERVAL  # seconds
+        self.components = {
+            component_name: {
+                "last_total_score": 0,
+                "last_average_score": 0,
+                **attributes  # Unpack all existing attributes from BODY_COMPONENTS
+            }
+            for component_name, attributes in BODY_COMPONENTS.items()
+        }
+        self.number_of_results = 0
 
         self.http_client = http_client
+
+    def _update_components(self, analysis_results):
+        """
+        Prepare data for sending to the server
+
+        Args:
+            analysis_results: Dictionary containing analysis results
+
+        Returns:
+            Dictionary: Data ready to be sent
+        """
+        if analysis_results["webcam_placement"] == "good":
+            for component_name in self.components:
+                self.components[component_name]["last_total_score"] += analysis_results[self.components["score"]]
+
+    def _prepare_data(self):
+        """
+        Prepare data for sending to the server
+
+        Returns:
+            Dictionary: Data ready to be sent
+        """
+        for component in self.components.values():
+            component["last_average_score"] = int(component["last_total_score"] / self.number_of_results)
 
     def _maybe_send_posture(self, current_posture, analysis_results):
         if os.getenv("DISABLE_TELEMETRY", False).lower() in ["true", "1", "yes"]:
@@ -81,10 +113,14 @@ class PostureDetector:
         time_passed = now - self.last_sent_time > self.SEND_INTERVAL
 
         if posture_changed or time_passed:
+            self._prepare_data()
             print(f"[Posture Update] Sending data (posture changed: {posture_changed})")
-            self.http_client.send_posture_data(analysis_results)
+            self.http_client.send_posture_data(self.components)
             self.last_sent_time = now
             self.last_sent_posture = current_posture
+            return True
+
+        return False
 
     def cleanup_and_exit(self, signum=None, frame=None):
         """Clean up resources and exit the program"""
@@ -248,7 +284,16 @@ class PostureDetector:
         # Analyze posture
         analysis_results = self.analyzer.analyze_posture(landmarks, self.http_client.last_sensitivity)
 
-        self._maybe_send_posture(analysis_results["good_posture"], analysis_results)
+        self.number_of_results += 1
+        # Update body components with analysis results
+        self._update_components(analysis_results)
+        # Check if posture has changed and send
+        sent = self._maybe_send_posture(analysis_results["good_posture"], analysis_results)
+        if sent:
+            # Reset counters
+            for component in self.components:
+                self.components[component]["last_total_score"] = 0
+            self.number_of_results = 0
 
         # Draw landmarks
         draw_landmarks(frame, landmarks)

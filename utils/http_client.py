@@ -1,11 +1,8 @@
 import asyncio
-import math
 from urllib.parse import urljoin
 
 import aiohttp
 import requests
-
-from config.settings import BODY_COMPONENTS
 
 
 class HttpClient:
@@ -25,27 +22,20 @@ class HttpClient:
         self._polling_task = None
         self._session = None
 
-    def _serialize_posture(self, raw_data):
-        components = []
-        for component_name, attributes in BODY_COMPONENTS.items():
-            if attributes["parameter"] in raw_data:
+    @staticmethod
+    def _serialize_posture(components):
+        components_serialized = []
+        for component_name, component in components.items():
+            component_data = {
+                "component_type": component_name,
+                "score": component["last_average_score"],
+            }
+            components_serialized.append(component_data)
+        return components_serialized
 
-                score = int(raw_data[attributes["score"]])
-
-                components.append(
-                    {
-                        "component_type": component_name,
-                        "is_correct": raw_data["good_posture"],
-                        "score": score,
-                        "correction": raw_data["issues"].get(component_name, "No issues detected"),
-                    }
-                )
-        return {"components": components}
-
-    def send_posture_data(self, analyzer_results):
+    def send_posture_data(self, components):
         endpoint = "/posture-data/"
-        request_body = self._serialize_posture(analyzer_results)
-        print(request_body)
+        request_body = self._serialize_posture(components)
         full_url = urljoin(self.base_url, endpoint)
         try:
             response = requests.post(full_url, json=request_body, headers=self.headers, timeout=10)
