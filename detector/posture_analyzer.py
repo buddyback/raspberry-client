@@ -5,11 +5,8 @@ Posture analysis module for detecting posture issues and providing guidance.
 import math
 
 from config.settings import (
-    MAX_SHOULDERS_DISTANCE,
-    NECK_ANGLE_THRESHOLD,
     NECK_SCORE_MAP,
     SHOULDERS_SCORE_MAP,
-    TORSO_ANGLE_THRESHOLD,
     TORSO_SCORE_MAP,
 )
 
@@ -215,14 +212,13 @@ class PostureAnalyzer:
         # This happens in a true reclined position
         neck_behind_torso = results["neck_angle"] < results["torso_angle"]
 
-        # this helps a bit with reclined chairs
+        # this helps a bit with reclined chairs, otherwise is too aggressive
+        relative_neck_angle = results["relative_neck_angle"]
         if results["torso_angle"] <= -30:
-            neck_threshold = int(NECK_ANGLE_THRESHOLD * 1.5)
-        else:
-            neck_threshold = NECK_ANGLE_THRESHOLD
+            relative_neck_angle = int(relative_neck_angle / 1.5)
 
         # compute scores
-        positive_neck_angle = results["relative_neck_angle"] if neck_behind_torso else -results["relative_neck_angle"]
+        positive_neck_angle = relative_neck_angle if neck_behind_torso else -relative_neck_angle
         positive_torso_angle = results["torso_angle"] if neck_behind_torso else -results["torso_angle"]
 
         results["neck_score"] = self.compute_score(NECK_SCORE_MAP, positive_neck_angle)

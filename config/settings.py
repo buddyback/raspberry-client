@@ -7,12 +7,6 @@ DEFAULT_CAMERA_WIDTH = 640
 DEFAULT_CAMERA_HEIGHT = 480
 CAMERA_FPS = 30
 
-# Posture thresholds
-# todo we have scores and maps. We should remove these
-NECK_ANGLE_THRESHOLD = 20
-TORSO_ANGLE_THRESHOLD = 10
-MAX_SHOULDERS_DISTANCE = 120
-
 # Score thresholds
 NECK_SCORE_MAP = {0: 100, 20: 75, 40: 10, 50: 0}
 
