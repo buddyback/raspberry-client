@@ -45,7 +45,7 @@ class PostureDetector:
 
         # Initialize MediaPipe pose detection
         self.mp_pose = mp.solutions.pose
-        self.pose = self.mp_pose.Pose(model_complexity=2, min_detection_confidence=0.7, min_tracking_confidence=0.7)
+        self.pose = self.mp_pose.Pose(model_complexity=model_complexity, min_detection_confidence=0.7, min_tracking_confidence=0.7)
 
         # Initialize posture analyzer
         self.analyzer = PostureAnalyzer()
