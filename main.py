@@ -4,12 +4,15 @@ Main entry point for the Posture Detector application.
 """
 import argparse
 import sys
+import asyncio
+import os
 
 from dotenv import load_dotenv
 
 from config.settings import DEFAULT_CAMERA_HEIGHT, DEFAULT_CAMERA_WIDTH
 from detector.posture_detector import PostureDetector
 from utils.camera import CameraManager
+from utils.http_client import HttpClient
 
 # Load environment variables from .env file
 load_dotenv()
@@ -50,7 +53,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def main():
+async def main():
     """Main function to run the posture detector"""
     args = parse_arguments()
 
@@ -63,14 +66,25 @@ def main():
             rotation=args.rotate,
         )
 
+        # Initialize HTTP client for sending data
+        http_client = HttpClient(
+            api_key=os.getenv("API_KEY"), base_url=os.getenv("API_BASE_URL"), device_id=os.getenv("DEVICE_ID")
+        )
+        http_client.start_polling()
+
         # Initialize posture detector
         detector = PostureDetector(camera_manager=camera_manager, show_guidance=not args.no_guidance, model_complexity=args.model)
 
-        # Run the detector
-        detector.run()
+        # Run the detector as a task
+        detector_task = asyncio.create_task(detector.run())
 
-    except KeyboardInterrupt:
-        print("\nApplication terminated by user")
+        # Wait for either the detector to finish or KeyboardInterrupt
+        try:
+            await detector_task
+        except KeyboardInterrupt:
+            print("\nApplication terminated by user")
+            detector.cleanup_and_exit()
+
     except Exception as e:
         print(f"Error: {str(e)}")
         return 1
@@ -79,4 +93,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    asyncio.run(main())

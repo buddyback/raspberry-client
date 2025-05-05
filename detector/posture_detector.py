@@ -6,6 +6,7 @@ import os
 import signal
 import sys
 import time
+import asyncio
 
 import cv2
 import mediapipe as mp
@@ -28,7 +29,7 @@ from utils.visualization import (
 class PostureDetector:
     """Main class for posture detection"""
 
-    def __init__(self, camera_manager, show_guidance=True, model_complexity=2):
+    def __init__(self, camera_manager, show_guidance=True, model_complexity=2, http_client=None):
         """
         Initialize posture detector
 
@@ -67,10 +68,7 @@ class PostureDetector:
         self.last_sent_posture = None
         self.SEND_INTERVAL = SEND_INTERVAL  # seconds
 
-        # Initialize HTTP client for sending data
-        self.http_client = HttpClient(
-            api_key=os.getenv("API_KEY"), base_url=os.getenv("API_BASE_URL"), device_id=os.getenv("DEVICE_ID")
-        )
+        self.http_client = http_client
 
     def _maybe_send_posture(self, current_posture, analysis_results):
         if os.getenv("DISABLE_TELEMETRY", False):
@@ -354,7 +352,7 @@ class PostureDetector:
 
         return True
 
-    def run(self):
+    async def run(self):
         """Main function to run the posture detection"""
         try:
             # Initialize webcam
@@ -399,6 +397,8 @@ class PostureDetector:
                     print("Window closed by user")
                     break
 
+                # Give other tasks a chance to run
+                await asyncio.sleep(0.01)
         except Exception as e:
             print(f"Error occurred: {str(e)}")
         finally:
