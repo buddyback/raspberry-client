@@ -35,7 +35,11 @@ class HttpClient:
                 components.append(
                     {
                         "component_type": component_name,
-                        "is_correct": score >= attributes["default_threshold"] if self.last_sensitivity == -1 else self.last_sensitivity,
+                        "is_correct": (
+                            score >= attributes["default_threshold"]
+                            if self.last_sensitivity == -1
+                            else self.last_sensitivity
+                        ),
                         "score": score,
                         "correction": raw_data["issues"].get(component_name, "No issues detected"),
                     }
