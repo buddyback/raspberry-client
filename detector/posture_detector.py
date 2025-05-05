@@ -71,7 +71,7 @@ class PostureDetector:
         self.http_client = http_client
 
     def _maybe_send_posture(self, current_posture, analysis_results):
-        if os.getenv("DISABLE_TELEMETRY", False):
+        if os.getenv("DISABLE_TELEMETRY", False).lower() in ["true", "1", "yes"]:
             return
 
         now = time.time()
@@ -400,7 +400,7 @@ class PostureDetector:
                     break
 
                 # Give other tasks a chance to run
-                await asyncio.sleep(0.01)
+                await asyncio.sleep(0.0)
         except Exception as e:
             print(f"Error occurred: {str(e)}")
             # print the stacktrace

@@ -29,11 +29,19 @@ class HttpClient:
         components = []
         for component_name, attributes in BODY_COMPONENTS.items():
             if attributes["parameter"] in raw_data:
+
+                # todo normalize score
+                score = int(raw_data[attributes["parameter"]] / attributes["reference"] * 100)
+                if score < 0:
+                    score = 0
+                elif score > 100:
+                    score = 100
+
                 components.append(
                     {
                         "component_type": component_name,
                         "is_correct": raw_data[attributes["parameter"]] < attributes["reference"],
-                        "score": int(raw_data[attributes["parameter"]] / attributes["reference"] * 100),
+                        "score": score,
                         "correction": raw_data["issues"].get(component_name, "No issues detected"),
                     }
                 )
