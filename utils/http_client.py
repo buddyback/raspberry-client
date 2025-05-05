@@ -25,8 +25,7 @@ class HttpClient:
         self._polling_task = None
         self._session = None
 
-    @staticmethod
-    def _serialize_posture(raw_data):
+    def _serialize_posture(self, raw_data):
         components = []
         for component_name, attributes in BODY_COMPONENTS.items():
             if attributes["parameter"] in raw_data:
@@ -36,7 +35,7 @@ class HttpClient:
                 components.append(
                     {
                         "component_type": component_name,
-                        "is_correct": score >= attributes["default_threshold"], # todo: user settings are ignored!
+                        "is_correct": score >= attributes["default_threshold"] if self.last_sensitivity == -1 else self.last_sensitivity,
                         "score": score,
                         "correction": raw_data["issues"].get(component_name, "No issues detected"),
                     }
