@@ -285,8 +285,8 @@ class PostureDetector:
         draw_angle_text(
             frame,
             landmarks,
-            analysis_results["relative_neck_angle"],
-            analysis_results["torso_angle"],
+            analysis_results["neck_score"],
+            analysis_results["torso_score"],
             color,
         )
 
