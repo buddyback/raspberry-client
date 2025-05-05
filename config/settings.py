@@ -8,10 +8,12 @@ DEFAULT_CAMERA_HEIGHT = 480
 CAMERA_FPS = 30
 
 # Posture thresholds
+# todo we have scores and maps. We should remove these
 NECK_ANGLE_THRESHOLD = 20
 TORSO_ANGLE_THRESHOLD = 10
 MAX_SHOULDERS_DISTANCE = 120
 
+# Score thresholds
 NECK_SCORE_MAP = {0: 100, 20: 75, 40: 10, 50: 0}
 
 TORSO_SCORE_MAP = {0: 100, 10: 75, 30: 10, 40: 0}
@@ -40,10 +42,12 @@ COLORS = {
 FONT_FACE = 0  # FONT_HERSHEY_SIMPLEX
 FONT_THICKNESS = 2
 
+DEFAULT_SENSITIVITY = 75
+
 BODY_COMPONENTS = {
-    "neck": {"parameter": "neck_angle", "score": "neck_score", "default_threshold": 75},
-    "torso": {"parameter": "torso_angle", "score": "torso_score", "default_threshold": 75},
-    "shoulders": {"parameter": "shoulder_offset", "score": "shoulder_score", "default_threshold": 75},
+    "neck": {"parameter": "neck_angle", "score": "neck_score"},
+    "torso": {"parameter": "torso_angle", "score": "torso_score"},
+    "shoulders": {"parameter": "shoulder_offset", "score": "shoulder_score"},
 }
 
 SEND_INTERVAL = 60  # seconds

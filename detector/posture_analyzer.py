@@ -87,7 +87,7 @@ class PostureAnalyzer:
                 t = (x - x0) / (x1 - x0)
                 return y0 + t * (y1 - y0)
 
-    def analyze_posture(self, landmarks):
+    def analyze_posture(self, landmarks, sensitivity=-1):
         """
         Analyze posture based on the landmarks
 
@@ -230,18 +230,19 @@ class PostureAnalyzer:
         results["shoulder_score"] = self.compute_score(SHOULDERS_SCORE_MAP, results["shoulder_offset"])
 
         results["good_posture"] = (
-            results["relative_neck_angle"] < neck_threshold
-            and results["torso_angle"] < TORSO_ANGLE_THRESHOLD
-            and results["shoulder_offset"] < MAX_SHOULDERS_DISTANCE
+            results["neck_score"] >= sensitivity
+            and results["neck_score"] >= sensitivity
+            and results["neck_score"] >= sensitivity
         )
 
-        if results["relative_neck_angle"] > neck_threshold:
+        # todo do we need them here?
+        if results["relative_neck_angle"] < sensitivity:
             results["issues"]["neck"] = "Straighten your neck"
 
-        if results["torso_angle"] > TORSO_ANGLE_THRESHOLD:
+        if results["torso_angle"] < sensitivity:
             results["issues"]["torso"] = "Sit upright"
 
-        if results["shoulder_offset"] >= MAX_SHOULDERS_DISTANCE:
+        if results["shoulder_offset"] < sensitivity:
             results["issues"]["shoulders"] = "Face the screen"
 
         return results

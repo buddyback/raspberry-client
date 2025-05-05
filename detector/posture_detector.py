@@ -246,7 +246,7 @@ class PostureDetector:
             return frame
 
         # Analyze posture
-        analysis_results = self.analyzer.analyze_posture(landmarks)
+        analysis_results = self.analyzer.analyze_posture(landmarks, self.http_client.last_sensitivity)
 
         self._maybe_send_posture(analysis_results["good_posture"], analysis_results)
 
