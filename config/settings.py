@@ -8,9 +8,15 @@ DEFAULT_CAMERA_HEIGHT = 480
 CAMERA_FPS = 30
 
 # Posture thresholds
-NECK_ANGLE_THRESHOLD = 15
+NECK_ANGLE_THRESHOLD = 20
 TORSO_ANGLE_THRESHOLD = 10
 MAX_SHOULDERS_DISTANCE = 120
+
+NECK_SCORE_MAP = {0: 100, 20: 75, 40: 10, 50: 0}
+
+TORSO_SCORE_MAP = {0: 100, 10: 75, 30: 10, 40: 0}
+
+SHOULDERS_SCORE_MAP = {0: 100, 100: 80, 120: 75, 300: 0}
 
 # Warning settings
 WARNING_TIME_THRESHOLD = 60  # seconds
@@ -35,18 +41,9 @@ FONT_FACE = 0  # FONT_HERSHEY_SIMPLEX
 FONT_THICKNESS = 2
 
 BODY_COMPONENTS = {
-    "neck": {
-        "parameter": "neck_angle",
-        "reference": NECK_ANGLE_THRESHOLD,
-    },
-    "torso": {
-        "parameter": "torso_angle",
-        "reference": NECK_ANGLE_THRESHOLD,
-    },
-    "shoulders": {
-        "parameter": "shoulder_offset",
-        "reference": MAX_SHOULDERS_DISTANCE,
-    },
+    "neck": {"parameter": "neck_angle", "score": "neck_score", "default_threshold": 75},
+    "torso": {"parameter": "torso_angle", "score": "torso_score", "default_threshold": 75},
+    "shoulders": {"parameter": "shoulder_offset", "score": "shoulder_score", "default_threshold": 75},
 }
 
 SEND_INTERVAL = 60  # seconds

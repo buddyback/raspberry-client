@@ -2,11 +2,11 @@
 Main posture detection module that integrates camera capture and posture analysis.
 """
 
+import asyncio
 import os
 import signal
 import sys
 import time
-import asyncio
 
 import cv2
 import mediapipe as mp
@@ -46,7 +46,9 @@ class PostureDetector:
 
         # Initialize MediaPipe pose detection
         self.mp_pose = mp.solutions.pose
-        self.pose = self.mp_pose.Pose(model_complexity=model_complexity, min_detection_confidence=0.7, min_tracking_confidence=0.7)
+        self.pose = self.mp_pose.Pose(
+            model_complexity=model_complexity, min_detection_confidence=0.7, min_tracking_confidence=0.7
+        )
 
         # Initialize posture analyzer
         self.analyzer = PostureAnalyzer()
@@ -168,10 +170,14 @@ class PostureDetector:
                 lm.landmark[lmPose.RIGHT_HIP].visibility if hasattr(lm.landmark[lmPose.RIGHT_HIP], "visibility") else 0
             )
             l_shoulder_vis = (
-                lm.landmark[lmPose.LEFT_SHOULDER].visibility if hasattr(lm.landmark[lmPose.LEFT_SHOULDER], "visibility") else 0
+                lm.landmark[lmPose.LEFT_SHOULDER].visibility
+                if hasattr(lm.landmark[lmPose.LEFT_SHOULDER], "visibility")
+                else 0
             )
             r_shoulder_vis = (
-                lm.landmark[lmPose.RIGHT_SHOULDER].visibility if hasattr(lm.landmark[lmPose.RIGHT_SHOULDER], "visibility") else 0
+                lm.landmark[lmPose.RIGHT_SHOULDER].visibility
+                if hasattr(lm.landmark[lmPose.RIGHT_SHOULDER], "visibility")
+                else 0
             )
 
             # Add information about which ear is more visible (useful for analyzing posture)
@@ -279,13 +285,15 @@ class PostureDetector:
         draw_angle_text(
             frame,
             landmarks,
-            analysis_results["neck_angle"],
+            analysis_results["relative_neck_angle"],
             analysis_results["torso_angle"],
             color,
         )
 
         # Add main angle text at top
-        angle_text = f'Neck: {int(analysis_results["neck_angle"])}°  Torso: {int(analysis_results["torso_angle"])}°'
+        angle_text = (
+            f'Neck: {int(analysis_results["relative_neck_angle"])}°  Torso: {int(analysis_results["torso_angle"])}°'
+        )
         cv2.putText(frame, angle_text, (10, 30), FONT_FACE, font_scale, color, thickness)
 
         # Draw posture indicator (GOOD/BAD)

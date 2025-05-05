@@ -5,9 +5,12 @@ Posture analysis module for detecting posture issues and providing guidance.
 import math
 
 from config.settings import (
-    NECK_ANGLE_THRESHOLD,
-    TORSO_ANGLE_THRESHOLD,
     MAX_SHOULDERS_DISTANCE,
+    NECK_ANGLE_THRESHOLD,
+    NECK_SCORE_MAP,
+    SHOULDERS_SCORE_MAP,
+    TORSO_ANGLE_THRESHOLD,
+    TORSO_SCORE_MAP,
 )
 
 
@@ -56,6 +59,34 @@ class PostureAnalyzer:
 
         return int(180 / math.pi * theta)
 
+    @staticmethod
+    def compute_score(points_map, x):
+        """
+        Interpola linearmente un valore x in base a una mappa di punti {x: y}.
+
+        Args:
+            points_map (dict): Mappa {x: y} con x ordinabili (es. angoli) e y score.
+            x (float): Valore da valutare.
+
+        Returns:
+            float: Score interpolato.
+        """
+        sorted_points = sorted(points_map.items())
+
+        # Clamp a valori fuori dai bordi
+        if x <= sorted_points[0][0]:
+            return sorted_points[0][1]
+        if x >= sorted_points[-1][0]:
+            return sorted_points[-1][1]
+
+        # Trova il segmento dove x si trova
+        for i in range(1, len(sorted_points)):
+            x0, y0 = sorted_points[i - 1]
+            x1, y1 = sorted_points[i]
+            if x0 <= x <= x1:
+                t = (x - x0) / (x1 - x0)
+                return y0 + t * (y1 - y0)
+
     def analyze_posture(self, landmarks):
         """
         Analyze posture based on the landmarks
@@ -75,6 +106,8 @@ class PostureAnalyzer:
             "webcam_position": None,
             "relative_neck_angle": None,
             "is_head_tilted_back": False,
+            "neck_score": 0,
+            "torso_score": 0,
         }
 
         # Extract key landmarks
@@ -95,16 +128,15 @@ class PostureAnalyzer:
         l_shoulder_vis = landmarks.get("l_shoulder_visibility", 0)
         r_shoulder_vis = landmarks.get("r_shoulder_visibility", 0)
 
-
         # Determine webcam position relative to the user
         # Higher visibility on left side means webcam is on the right and vice versa
         if l_ear_vis > r_ear_vis:
             if self.same_side_frames == -1 or self.same_side_frames == 60:
-                self.webcam_position = "right" # If left ear is more visible, webcam is on right
+                self.webcam_position = "right"  # If left ear is more visible, webcam is on right
                 self.same_side_frames = 0
         else:
             if self.same_side_frames == -1 or self.same_side_frames == 60:
-                self.webcam_position = "left" # If right ear is more visible, webcam is on left
+                self.webcam_position = "left"  # If right ear is more visible, webcam is on left
                 self.same_side_frames = 0
         if self.same_side_frames < 60:
             self.same_side_frames += 1
@@ -112,7 +144,9 @@ class PostureAnalyzer:
         results["webcam_position"] = self.webcam_position
 
         results["webcam_placement"] = "good"
-        if (results["webcam_position"] == "right" and r_ear_vis < 0.99) or (results["webcam_position"] == "left" and l_ear_vis < 0.99):
+        if (results["webcam_position"] == "right" and r_ear_vis < 0.99) or (
+            results["webcam_position"] == "left" and l_ear_vis < 0.99
+        ):
             results["webcam_placement"] = "ear"
 
         if min(l_hip_vis, r_hip_vis) < 0.80:
@@ -125,7 +159,6 @@ class PostureAnalyzer:
             print(results["webcam_placement"])
 
         self.webcam_placement = results["webcam_placement"]
-
 
         # Check if all required landmarks are available
         if None in [l_shoulder, r_shoulder] or (l_ear is None and r_ear is None) or (l_hip is None and r_hip is None):
@@ -169,7 +202,7 @@ class PostureAnalyzer:
         # Calculate angles
         results["neck_angle"] = self.calculate_angle(shoulder_x, shoulder_y, ear_x, ear_y)
         results["torso_angle"] = self.calculate_angle(hip_x, hip_y, shoulder_x, shoulder_y)
-        #results["reclination"] = self.calculate_angle(
+        # results["reclination"] = self.calculate_angle(
 
         # Calculate relative angle between neck and torso
         results["relative_neck_angle"] = abs(results["neck_angle"] - results["torso_angle"])
@@ -187,11 +220,19 @@ class PostureAnalyzer:
             neck_threshold = int(NECK_ANGLE_THRESHOLD * 1.5)
         else:
             neck_threshold = NECK_ANGLE_THRESHOLD
-        
-        # print(neck_threshold)
+
+        # compute scores
+        positive_neck_angle = results["relative_neck_angle"] if neck_behind_torso else -results["relative_neck_angle"]
+        positive_torso_angle = results["torso_angle"] if neck_behind_torso else -results["torso_angle"]
+
+        results["neck_score"] = self.compute_score(NECK_SCORE_MAP, positive_neck_angle)
+        results["torso_score"] = self.compute_score(TORSO_SCORE_MAP, positive_torso_angle)
+        results["shoulder_score"] = self.compute_score(SHOULDERS_SCORE_MAP, results["shoulder_offset"])
 
         results["good_posture"] = (
-            results["relative_neck_angle"] < neck_threshold and results["torso_angle"] < TORSO_ANGLE_THRESHOLD and results["shoulder_offset"] < MAX_SHOULDERS_DISTANCE
+            results["relative_neck_angle"] < neck_threshold
+            and results["torso_angle"] < TORSO_ANGLE_THRESHOLD
+            and results["shoulder_offset"] < MAX_SHOULDERS_DISTANCE
         )
 
         if results["relative_neck_angle"] > neck_threshold:

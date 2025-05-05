@@ -3,9 +3,9 @@
 Main entry point for the Posture Detector application.
 """
 import argparse
-import sys
 import asyncio
 import os
+import sys
 
 from dotenv import load_dotenv
 
@@ -73,7 +73,12 @@ async def main():
         http_client.start_polling()
 
         # Initialize posture detector
-        detector = PostureDetector(camera_manager=camera_manager, show_guidance=not args.no_guidance, model_complexity=args.model, http_client=http_client)
+        detector = PostureDetector(
+            camera_manager=camera_manager,
+            show_guidance=not args.no_guidance,
+            model_complexity=args.model,
+            http_client=http_client,
+        )
 
         # Run the detector as a task
         detector_task = asyncio.create_task(detector.run())

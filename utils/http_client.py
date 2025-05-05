@@ -1,11 +1,12 @@
+import asyncio
+import math
 from urllib.parse import urljoin
 
-import requests
 import aiohttp
-import asyncio
-from urllib.parse import urljoin
+import requests
 
 from config.settings import BODY_COMPONENTS
+
 
 class HttpClient:
     def __init__(self, base_url, api_key, device_id):
@@ -30,17 +31,12 @@ class HttpClient:
         for component_name, attributes in BODY_COMPONENTS.items():
             if attributes["parameter"] in raw_data:
 
-                # todo normalize score
-                score = int(raw_data[attributes["parameter"]] / attributes["reference"] * 100)
-                if score < 0:
-                    score = 0
-                elif score > 100:
-                    score = 100
+                score = int(raw_data[attributes["score"]])
 
                 components.append(
                     {
                         "component_type": component_name,
-                        "is_correct": raw_data[attributes["parameter"]] < attributes["reference"],
+                        "is_correct": score >= attributes["default_threshold"], # todo: user settings are ignored!
                         "score": score,
                         "correction": raw_data["issues"].get(component_name, "No issues detected"),
                     }
@@ -50,6 +46,7 @@ class HttpClient:
     def send_posture_data(self, analyzer_results):
         endpoint = "/posture-data/"
         request_body = self._serialize_posture(analyzer_results)
+        print(request_body)
         full_url = urljoin(self.base_url, endpoint)
         try:
             response = requests.post(full_url, json=request_body, headers=self.headers, timeout=10)
@@ -65,7 +62,7 @@ class HttpClient:
         params = {
             "last_sensitivity": self.last_sensitivity,
             "last_session_status": str(self.last_session_status),
-            "last_vibration_intensity": self.last_vibration_intensity
+            "last_vibration_intensity": self.last_vibration_intensity,
         }
 
         try:
