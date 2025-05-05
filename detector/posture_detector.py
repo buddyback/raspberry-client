@@ -292,7 +292,7 @@ class PostureDetector:
 
         # Add main angle text at top
         angle_text = (
-            f'Neck: {int(analysis_results["relative_neck_angle"])}°  Torso: {int(analysis_results["torso_angle"])}°'
+            f'Neck: {int(analysis_results["neck_score"])}°  Torso: {int(analysis_results["torso_score"])}°'
         )
         cv2.putText(frame, angle_text, (10, 30), FONT_FACE, font_scale, color, thickness)
 

@@ -218,8 +218,8 @@ class PostureAnalyzer:
             relative_neck_angle = int(relative_neck_angle / 1.5)
 
         # compute scores
-        positive_neck_angle = relative_neck_angle if neck_behind_torso else -relative_neck_angle
-        positive_torso_angle = results["torso_angle"] if neck_behind_torso else -results["torso_angle"]
+        positive_neck_angle = relative_neck_angle if relative_neck_angle >= 0 else -relative_neck_angle
+        positive_torso_angle = results["torso_angle"] if results["torso_angle"] >= 0 else -results["torso_angle"]
 
         results["neck_score"] = self.compute_score(NECK_SCORE_MAP, positive_neck_angle)
         results["torso_score"] = self.compute_score(TORSO_SCORE_MAP, positive_torso_angle)
