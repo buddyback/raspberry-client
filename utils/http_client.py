@@ -18,10 +18,11 @@ class HttpClient:
         }
 
         self.last_sensitivity = -1
-        self.last_session_status = -1
+        self.last_session_status = False
         self.last_vibration_intensity = -1
 
         self._polling_task = None
+        self._session = None
 
     @staticmethod
     def _serialize_posture(raw_data):
@@ -55,29 +56,40 @@ class HttpClient:
         url = urljoin(self.base_url, "/devices/settings/")
         params = {
             "last_sensitivity": self.last_sensitivity,
-            "last_session_status": self.last_session_status,
+            "last_session_status": str(self.last_session_status),
             "last_vibration_intensity": self.last_vibration_intensity
         }
 
         try:
-            async with aiohttp.ClientSession(headers=self.headers) as session:
-                async with session.get(url, params=params, timeout=timeout) as response:
-                    response.raise_for_status()
-                    data = await response.json()
-                    self.last_sensitivity = data["sensitivity"]
-                    self.last_session_status = data["has_active_session"]
-                    self.last_vibration_intensity = data["vibration_intensity"]
-                    return data
+            if not self._session:
+                self._session = aiohttp.ClientSession(headers=self.headers)
+            async with self._session.get(url, params=params, timeout=timeout) as response:
+                response.raise_for_status()  # Verifica che non ci siano errori
+                data = await response.json()  # Ottieni i dati dalla risposta
+                self.last_sensitivity = data["sensitivity"]
+                self.last_session_status = data["has_active_session"]
+                self.last_vibration_intensity = data["vibration_intensity"]
+                return data
         except aiohttp.ClientError as e:
-            print(f"Error sending posture data: {e}")
+            print(f"Error polling settings: {e}")
             raise
 
     async def _poll_loop(self):
-        print("Starting polling loop...")
+        print("Starting long polling loop...")
         while True:
-            await self.poll()
-            await asyncio.sleep(60)
+            try:
+                await self.poll()
+            except Exception as e:
+                print(f"Polling failed: {e}")
+                await asyncio.sleep(1)
 
     def start_polling(self):
+        if not self._polling_task:
+            self._polling_task = asyncio.create_task(self._poll_loop())
+
+    async def cleanup(self):
+        if self._session:
+            await self._session.close()
+            self._session = None
         if not self._polling_task:
             self._polling_task = asyncio.create_task(self._poll_loop())

@@ -374,6 +374,8 @@ class PostureDetector:
             print("- Press 'f' to toggle fullscreen mode")
 
             while True:
+                while not self.http_client.last_session_status:
+                    await asyncio.sleep(1)
                 # Read frame from webcam
                 success, frame = self.camera_manager.read_frame()
 
