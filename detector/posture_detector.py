@@ -401,6 +401,8 @@ class PostureDetector:
                 await asyncio.sleep(0.01)
         except Exception as e:
             print(f"Error occurred: {str(e)}")
+            # print the stacktrace
+            raise e
         finally:
             # Ensure cleanup always happens
             self.cleanup_and_exit()
