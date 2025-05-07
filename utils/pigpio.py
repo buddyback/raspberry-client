@@ -8,14 +8,14 @@ class PigpioClient:
         self.pi = pigpio.pi(host, port)
         self.pi.set_mode(VIBRATION_PIN, pigpio.OUTPUT)
 
-    def short_alert(self):
+    async def short_alert(self, asyncio=None):
         if not self.pi.connected:
             return
         self.pi.write(VIBRATION_PIN, 1)
         # Wait for 0.1 seconds
-        time.sleep(0.1)
+        await asyncio.sleep(0.1)
         self.pi.write(VIBRATION_PIN, 0)
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
         self.pi.write(VIBRATION_PIN, 1)
-        time.sleep(0.1)
+        await asyncio.sleep(0.1)
         self.pi.write(VIBRATION_PIN, 0)
