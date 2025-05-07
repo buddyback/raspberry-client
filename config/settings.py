@@ -48,7 +48,7 @@ SLIDING_WINDOW_DURATION = 120  # seconds
 SEND_INTERVAL = 60  # seconds
 
 # GPIO
-VIBRATION_PIN = 4
+VIBRATION_PIN = 14
 
 # Instruction panel settings
 PANEL_PADDING = 10
