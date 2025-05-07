@@ -1,6 +1,4 @@
 import asyncio
-import subprocess
-import time
 
 import pigpio
 
