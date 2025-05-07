@@ -26,3 +26,22 @@ class PigpioClient:
             self.pi.write(VIBRATION_PIN, 0)
         finally:
             self._alert_running = False
+
+    async def long_alert(self):
+        if not self.pi.connected or self._alert_running:
+            return
+        try:
+            self._alert_running = True
+            self.pi.write(VIBRATION_PIN, 1)
+            await asyncio.sleep(1)
+            self.pi.write(VIBRATION_PIN, 0)
+            await asyncio.sleep(1)
+            self.pi.write(VIBRATION_PIN, 1)
+            await asyncio.sleep(1)
+            self.pi.write(VIBRATION_PIN, 0)
+            await asyncio.sleep(1)
+            self.pi.write(VIBRATION_PIN, 1)
+            await asyncio.sleep(1)
+            self.pi.write(VIBRATION_PIN, 0)
+        finally:
+            self._alert_running = False

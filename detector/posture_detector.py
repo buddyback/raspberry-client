@@ -310,10 +310,10 @@ class PostureDetector:
             for component, score in scores.items():
                 if score < sensitivity:
                     print("your average is very bad bro:", component, "is", score)
-                    # asyncio.create_task(self.gpio_client.short_alert())
                     now = datetime.now()
                     if self.last_alert_time is None or now - self.last_alert_time > timedelta(seconds=WARNING_COOLDOWN):
-                        await self.gpio_client.short_alert() # todo switch to long alert
+                        await self.gpio_client.long_alert()
+                        # asyncio.create_task(self.gpio_client.long_alert()) # todo decide if we want to use this
                         self.last_alert_time = now
 
 
