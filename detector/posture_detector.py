@@ -319,7 +319,8 @@ class PostureDetector:
             for component, score in scores.items():
                 if score < sensitivity:
                     print("your average is very bad bro:", component, "is", score)
-                    asyncio.create_task(self.gpio_client.short_alert())
+                    # asyncio.create_task(self.gpio_client.short_alert())
+                    self.gpio_client.short_alert()
 
 
         draw_landmarks(frame, landmarks)
