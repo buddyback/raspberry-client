@@ -8,7 +8,6 @@ import signal
 import sys
 import time
 from datetime import datetime, timedelta
-from utils.pigpio import PigpioClient
 
 import cv2
 import mediapipe as mp
@@ -23,6 +22,7 @@ from config.settings import (
     WARNING_COOLDOWN,
 )
 from detector.posture_analyzer import PostureAnalyzer
+from utils.pigpio import PigpioClient
 from utils.visualization import (
     draw_angle_text,
     draw_landmarks,
@@ -315,7 +315,6 @@ class PostureDetector:
                         await self.gpio_client.long_alert()
                         # asyncio.create_task(self.gpio_client.long_alert()) # todo decide if we want to use this
                         self.last_alert_time = now
-
 
         draw_landmarks(frame, landmarks)
 

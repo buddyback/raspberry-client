@@ -1,12 +1,14 @@
-import time
-import pigpio
-from config.settings import VIBRATION_PIN
-import subprocess
 import asyncio
+import subprocess
+import time
+
+import pigpio
+
+from config.settings import VIBRATION_PIN
 
 
 class PigpioClient:
-    def __init__(self, host='localhost', port=8888):
+    def __init__(self, host="localhost", port=8888):
         # loop = asyncio.get_event_loop()
         self.pi = pigpio.pi(host, port)
         self.pi.set_mode(VIBRATION_PIN, pigpio.OUTPUT)
