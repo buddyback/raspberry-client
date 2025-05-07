@@ -28,7 +28,7 @@ class HttpClient:
         for component_name, component in components.items():
             component_data = {
                 "component_type": component_name,
-                "score": component["last_average_score"],
+                "score": component,
             }
             components_serialized.append(component_data)
         return components_serialized

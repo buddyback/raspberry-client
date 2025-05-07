@@ -5,7 +5,6 @@ Main entry point for the Posture Detector application.
 import argparse
 import asyncio
 import os
-import sys
 
 from dotenv import load_dotenv
 

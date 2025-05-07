@@ -43,6 +43,8 @@ BODY_COMPONENTS = {
     "shoulders": {"parameter": "shoulder_offset", "score": "shoulder_score"},
 }
 
+SLIDING_WINDOW_DURATION = 120  # seconds
+
 SEND_INTERVAL = 60  # seconds
 
 # Instruction panel settings

@@ -210,7 +210,7 @@ class PostureAnalyzer:
 
         # Alternative condition: neck angle is smaller than torso angle (head is actually back)
         # This happens in a true reclined position
-        neck_behind_torso = results["neck_angle"] < results["torso_angle"]
+        # neck_behind_torso = results["neck_angle"] < results["torso_angle"] todo capire se serve ancora a qualcosa (non penso)
 
         # this helps a bit with reclined chairs, otherwise is too aggressive
         relative_neck_angle = results["relative_neck_angle"]

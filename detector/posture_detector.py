@@ -7,12 +7,21 @@ import os
 import signal
 import sys
 import time
+from datetime import datetime, timedelta
 
 import cv2
 import mediapipe as mp
 
-from config.settings import CAMERA_FPS, COLORS, FONT_FACE, SEND_INTERVAL, WARNING_COOLDOWN, WARNING_TIME_THRESHOLD, \
-    BODY_COMPONENTS
+from config.settings import (
+    BODY_COMPONENTS,
+    CAMERA_FPS,
+    COLORS,
+    FONT_FACE,
+    SEND_INTERVAL,
+    SLIDING_WINDOW_DURATION,
+    WARNING_COOLDOWN,
+    WARNING_TIME_THRESHOLD,
+)
 from detector.posture_analyzer import PostureAnalyzer
 from utils.visualization import (
     draw_angle_text,
@@ -68,41 +77,49 @@ class PostureDetector:
         self.last_sent_time = time.time()
         self.last_sent_posture = None
         self.SEND_INTERVAL = SEND_INTERVAL  # seconds
-        self.components = {
-            component_name: {
-                "last_total_score": 0,
-                "last_average_score": 0,
-                **attributes  # Unpack all existing attributes from BODY_COMPONENTS
-            }
-            for component_name, attributes in BODY_COMPONENTS.items()
-        }
-        self.number_of_results = 0
+
+        self.history = []
 
         self.http_client = http_client
 
-    def _update_components(self, analysis_results):
-        """
-        Prepare data for sending to the server
+    def _update_history(self, analysis_results):
+        if analysis_results["webcam_placement"] != "good":
+            return
+        self.history.append((datetime.now(), analysis_results))
 
-        Args:
-            analysis_results: Dictionary containing analysis results
+        # todo make it an async task
+        # pop elements if SLIDING_WINDOW_DURATION (which is a duration in seconds) is reached
+        while len(self.history) > 0:
+            first_time, _ = self.history[0]
+            now = datetime.now()
+            diff = now - first_time
+            if diff.total_seconds() > SLIDING_WINDOW_DURATION:
+                self.history.pop(0)
+            else:
+                break
 
-        Returns:
-            Dictionary: Data ready to be sent
-        """
-        if analysis_results["webcam_placement"] == "good":
-            for component_name in self.components:
-                self.components[component_name]["last_total_score"] += analysis_results[self.components["score"]]
+    def _get_average_score(self, seconds):
+        # Get the current time
+        now = datetime.now()
+        # Calculate the time threshold
+        time_threshold = now - timedelta(seconds=seconds)
+        # Filter the history to include only entries within the time threshold
+        filtered_history = [entry for entry in self.history if entry[0] >= time_threshold]
+        # Calculate the average score for each component
+        average_scores = {}
 
-    def _prepare_data(self):
-        """
-        Prepare data for sending to the server
+        for component_name, attributes in BODY_COMPONENTS.items():
+            # Get the score name
+            score_key = attributes["score"]
+            # Get the scores for the filtered history
+            scores = [entry[1][score_key] for entry in filtered_history]
+            # Calculate the average score
+            if len(scores) > 0:
+                average_scores[score_key] = sum(scores) / len(scores)
+            else:
+                average_scores[score_key] = 0
 
-        Returns:
-            Dictionary: Data ready to be sent
-        """
-        for component in self.components.values():
-            component["last_average_score"] = int(component["last_total_score"] / self.number_of_results)
+        return average_scores
 
     def _maybe_send_posture(self, current_posture, analysis_results):
         if os.getenv("DISABLE_TELEMETRY", False).lower() in ["true", "1", "yes"]:
@@ -110,12 +127,17 @@ class PostureDetector:
 
         now = time.time()
         posture_changed = current_posture != self.last_sent_posture
+        # todo we don't want to send data on each change, it does not make sense
+
         time_passed = now - self.last_sent_time > self.SEND_INTERVAL
 
         if posture_changed or time_passed:
-            self._prepare_data()
+            # self._prepare_data()
+
+            components = self._get_average_score(SLIDING_WINDOW_DURATION)
+
             print(f"[Posture Update] Sending data (posture changed: {posture_changed})")
-            self.http_client.send_posture_data(self.components)
+            self.http_client.send_posture_data(components)
             self.last_sent_time = now
             self.last_sent_posture = current_posture
             return True
@@ -284,18 +306,8 @@ class PostureDetector:
         # Analyze posture
         analysis_results = self.analyzer.analyze_posture(landmarks, self.http_client.last_sensitivity)
 
-        self.number_of_results += 1
-        # Update body components with analysis results
-        self._update_components(analysis_results)
-        # Check if posture has changed and send
-        sent = self._maybe_send_posture(analysis_results["good_posture"], analysis_results)
-        if sent:
-            # Reset counters
-            for component in self.components:
-                self.components[component]["last_total_score"] = 0
-            self.number_of_results = 0
+        self._update_history(analysis_results)
 
-        # Draw landmarks
         draw_landmarks(frame, landmarks)
 
         # Update frame counters based on posture quality
@@ -336,9 +348,7 @@ class PostureDetector:
         )
 
         # Add main angle text at top
-        angle_text = (
-            f'Neck: {int(analysis_results["neck_score"])}°  Torso: {int(analysis_results["torso_score"])}°'
-        )
+        angle_text = f'Neck: {int(analysis_results["neck_score"])}°  Torso: {int(analysis_results["torso_score"])}°'
         cv2.putText(frame, angle_text, (10, 30), FONT_FACE, font_scale, color, thickness)
 
         # Draw posture indicator (GOOD/BAD)
