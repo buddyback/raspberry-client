@@ -1,12 +1,13 @@
 import time
 
-import pigpio
+import apigpio
 from config.settings import VIBRATION_PIN
 
 class PigpioClient:
-    def __init__(self, host='localhost', port=8888):
-        self.pi = pigpio.pi(host, port)
-        self.pi.set_mode(VIBRATION_PIN, pigpio.OUTPUT)
+    def __init__(self, host='localhost', port=8888, asyncio=None):
+        loop = asyncio.get_event_loop()
+        self.pi = apigpio.Pi(loop)
+        self.pi.set_mode(VIBRATION_PIN, apigpio.OUTPUT)
         self._alert_running = False
 
     async def short_alert(self, asyncio=None):
