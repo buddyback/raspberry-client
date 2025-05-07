@@ -8,6 +8,7 @@ import signal
 import sys
 import time
 from datetime import datetime, timedelta
+from utils.pigpio import PigpioClient
 
 import cv2
 import mediapipe as mp
@@ -81,6 +82,8 @@ class PostureDetector:
         self.history = []
 
         self.http_client = http_client
+
+        self.gpio_client = PigpioClient()
 
     def _update_history(self, analysis_results):
         if analysis_results["webcam_placement"] != "good":
@@ -307,6 +310,17 @@ class PostureDetector:
         analysis_results = self.analyzer.analyze_posture(landmarks, self.http_client.last_sensitivity)
 
         self._update_history(analysis_results)
+
+        # todo notification management does here
+        if not analysis_results["good_posture"]:
+            scores = self._get_average_score(SLIDING_WINDOW_DURATION)
+            sensitivity = self.http_client.last_sensitivity
+
+            for component, score in scores.items():
+                if score < sensitivity:
+                    print("your average is very bad bro:", component, "is", score)
+                    self.gpio_client.short_alert()
+
 
         draw_landmarks(frame, landmarks)
 
