@@ -21,7 +21,6 @@ from config.settings import (
     SEND_INTERVAL,
     SLIDING_WINDOW_DURATION,
     WARNING_COOLDOWN,
-    WARNING_TIME_THRESHOLD,
 )
 from detector.posture_analyzer import PostureAnalyzer
 from utils.visualization import (
@@ -63,7 +62,7 @@ class PostureDetector:
         self.analyzer = PostureAnalyzer()
 
         # Warning timer
-        self.last_warning_time = 0
+        self.last_alert_time = None
 
         # Register signal handlers for graceful shutdown
         signal.signal(signal.SIGINT, self.cleanup_and_exit)
@@ -154,14 +153,6 @@ class PostureDetector:
             self.camera_manager.release()
         cv2.destroyAllWindows()
         sys.exit(0)
-
-    def send_warning(self):
-        """Send alert when bad posture is detected for too long"""
-        current_time = time.time()
-        if current_time - self.last_warning_time > WARNING_COOLDOWN:
-            print("\a")  # System beep
-            print("WARNING: Bad posture detected! Please correct your posture.")
-            self.last_warning_time = current_time
 
     def extract_landmarks(self, pose_landmarks, frame_width, frame_height):
         """
@@ -320,7 +311,10 @@ class PostureDetector:
                 if score < sensitivity:
                     print("your average is very bad bro:", component, "is", score)
                     # asyncio.create_task(self.gpio_client.short_alert())
-                    await self.gpio_client.short_alert()
+                    now = datetime.now()
+                    if self.last_alert_time is None or now - self.last_alert_time > timedelta(seconds=WARNING_COOLDOWN):
+                        await self.gpio_client.short_alert() # todo switch to long alert
+                        self.last_alert_time = now
 
 
         draw_landmarks(frame, landmarks)
@@ -338,11 +332,6 @@ class PostureDetector:
 
             # Draw lines with bad posture color
             draw_posture_lines(frame, landmarks, COLORS["red"])
-
-            # Check if warning should be sent
-            bad_time = self.bad_frames / CAMERA_FPS
-            if bad_time > WARNING_TIME_THRESHOLD:
-                self.send_warning()
 
         # Calculate timing values for UI
         analysis_results["good_time"] = (1 / CAMERA_FPS) * self.good_frames
