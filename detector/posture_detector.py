@@ -477,7 +477,7 @@ class PostureDetector:
                     break
 
                 # Give other tasks a chance to run
-                await asyncio.sleep(0.0)
+                await asyncio.sleep(0.1)
         except Exception as e:
             print(f"Error occurred: {str(e)}")
             # print the stacktrace
