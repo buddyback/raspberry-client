@@ -256,7 +256,7 @@ class PostureDetector:
             print(f"Error extracting landmarks: {e}")
             return {}
 
-    def process_frame(self, frame):
+    async def process_frame(self, frame):
         """
         Process a single frame for posture detection
 
@@ -319,7 +319,7 @@ class PostureDetector:
             for component, score in scores.items():
                 if score < sensitivity:
                     print("your average is very bad bro:", component, "is", score)
-                    self.gpio_client.short_alert()
+                    asyncio.create_task(self.gpio_client.short_alert())
 
 
         draw_landmarks(frame, landmarks)
@@ -461,7 +461,7 @@ class PostureDetector:
                     break
 
                 # Process the frame
-                processed_frame = self.process_frame(frame)
+                processed_frame = await self.process_frame(frame)
 
                 # Display the processed frame
                 cv2.imshow(self.window_name, processed_frame)
