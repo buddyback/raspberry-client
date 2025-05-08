@@ -304,6 +304,8 @@ class PostureDetector:
 
         # todo if person not visible, show to display
 
+        # todo if person not visible for long, start idle stuff
+
         if not analysis_results["good_posture"]:
             scores = self._get_average_score(SLIDING_WINDOW_DURATION)
             sensitivity = self.http_client.last_sensitivity
