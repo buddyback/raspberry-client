@@ -302,7 +302,8 @@ class PostureDetector:
 
         self._update_history(analysis_results)
 
-        # todo notification management does here
+        # todo if person not visible, show to display
+
         if not analysis_results["good_posture"]:
             scores = self._get_average_score(SLIDING_WINDOW_DURATION)
             sensitivity = self.http_client.last_sensitivity
@@ -315,6 +316,7 @@ class PostureDetector:
                         await self.gpio_client.long_alert()
                         # asyncio.create_task(self.gpio_client.long_alert()) # todo decide if we want to use this
                         self.last_alert_time = now
+                        # todo alert to display
 
         draw_landmarks(frame, landmarks)
 
