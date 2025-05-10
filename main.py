@@ -6,12 +6,13 @@ import argparse
 import asyncio
 import os
 
+import websockets
 from dotenv import load_dotenv
 
 from config.settings import DEFAULT_CAMERA_HEIGHT, DEFAULT_CAMERA_WIDTH
 from detector.posture_detector import PostureDetector
 from utils.camera import CameraManager
-from utils.http_client import HttpClient
+from utils.websocket_client import WebSocketClient
 
 # Load environment variables from .env file
 load_dotenv()
@@ -64,34 +65,44 @@ async def main():
             frame_height=args.height,
             rotation=args.rotate,
         )
+        websocket_client = WebSocketClient(
+            base_url=os.getenv("WEBSOCET_BASE_URL"),
+            api_key=os.getenv("API_KEY"),
+            device_id=os.getenv("DEVICE_ID"),
+        )
+
+        async with websockets.connect(websocket_client.uri) as websocket:
+            websocket_client.websocket = websocket
 
         # Initialize HTTP client for sending data
-        http_client = HttpClient(
-            api_key=os.getenv("API_KEY"), base_url=os.getenv("API_BASE_URL"), device_id=os.getenv("DEVICE_ID")
-        )
-        http_client.start_polling()
+            # http_client = HttpClient(
+            #     api_key=os.getenv("API_KEY"), base_url=os.getenv("API_BASE_URL"), device_id=os.getenv("DEVICE_ID")
+            # )
+            # http_client.start_polling()
 
-        # Initialize posture detector
-        detector = PostureDetector(
-            camera_manager=camera_manager,
-            show_guidance=not args.no_guidance,
-            model_complexity=args.model,
-            http_client=http_client,
-        )
+            # Initialize posture detector
+            detector = PostureDetector(
+                camera_manager=camera_manager,
+                show_guidance=not args.no_guidance,
+                model_complexity=args.model,
+                # http_client=http_client,
+                websocket_client=websocket_client
+            )
 
-        # Run the detector as a task
-        detector_task = asyncio.create_task(detector.run())
+            # Run the detector as a task
+            detector_task = asyncio.create_task(detector.run())
 
-        # Wait for either the detector to finish or KeyboardInterrupt
-        try:
-            await detector_task
-        except KeyboardInterrupt:
-            print("\nApplication terminated by user")
-            detector.cleanup_and_exit()
+            # Wait for either the detector to finish or KeyboardInterrupt
+            try:
+                await detector_task
+            except KeyboardInterrupt:
+                print("\nApplication terminated by user")
+                detector.cleanup_and_exit()
 
+    except websockets.exceptions.ConnectionClosed as e:
+        print(f"Connection closed with code {e.code}: {e.reason}")
     except Exception as e:
-        print(f"Error: {str(e)}")
-        return 1
+        print(f"Error: {type(e).__name__}: {str(e)}")
 
     return 0
 

@@ -61,7 +61,7 @@ class HttpClient:
                 response.raise_for_status()  # Verifica che non ci siano errori
                 data = await response.json()  # Ottieni i dati dalla risposta
                 self.last_sensitivity = data["sensitivity"]
-                self.last_session_status = data["has_active_session"]
+                self.last_session_status = data["last_session_status"]
                 self.last_vibration_intensity = data["vibration_intensity"]
                 return data
         except aiohttp.ClientError as e:

@@ -22,7 +22,6 @@ from config.settings import (
     WARNING_COOLDOWN,
 )
 from detector.posture_analyzer import PostureAnalyzer
-from utils.pigpio import PigpioClient
 from utils.visualization import (
     draw_angle_text,
     draw_landmarks,
@@ -37,7 +36,7 @@ from utils.visualization import (
 class PostureDetector:
     """Main class for posture detection"""
 
-    def __init__(self, camera_manager, show_guidance=True, model_complexity=2, http_client=None):
+    def __init__(self, camera_manager, show_guidance=True, model_complexity=2, websocket_client=None):
         """
         Initialize posture detector
 
@@ -80,9 +79,11 @@ class PostureDetector:
 
         self.history = []
 
-        self.http_client = http_client
+        self.websocket_client = websocket_client
+        # self.http_client = http_client
+        self.settings = {}
 
-        self.gpio_client = PigpioClient()
+        # self.gpio_client = PigpioClient()
 
     def _update_history(self, analysis_results):
         if analysis_results["webcam_placement"] != "good":
@@ -302,14 +303,17 @@ class PostureDetector:
 
         self._update_history(analysis_results)
 
+
         # todo if person not visible, show to display
 
         # todo if is sitted for long, start idle stuff
 
+        # If the last posture is bad then...
         if not analysis_results["good_posture"]:
             scores = self._get_average_score(SLIDING_WINDOW_DURATION)
             sensitivity = self.http_client.last_sensitivity
 
+            # For each component, check if the score is below the sensitivity threshold to trigger alert
             for component, score in scores.items():
                 if score < sensitivity:
                     print("your average is very bad bro:", component, "is", score)
@@ -443,9 +447,33 @@ class PostureDetector:
             print("- Press 'r' to enter resize mode, then use arrow keys to resize camera frame")
             print("- Press 'f' to toggle fullscreen mode")
 
+            self.settings = await self.websocket_client.get_settings()
+            print(f"Active session status: {'🟢 ACTIVE' if self.settings.get('has_active_session', False) else '🔴 INACTIVE'}")
+            # Request the settings again explicitly
+            # await self.websocket.send(json.dumps({"type": "settings_request"}))
+            # settings = await websocket.recv()
+            # print(f"Requested settings: {json.loads(settings)}")
+
+            # Start a background task for user commands
+            user_task = asyncio.create_task(self.websocket_client.process_user_commands())
+
+            # Start a background task for retrieving settings
+            # settings_task = asyncio.create_task(self.websocket_client.get_settings())
+
+            heartbeat_task = asyncio.create_task(self.websocket_client.send_heartbeats())
+
+            # Keep the connection open and listen for updates
+            print("Listening for real-time updates (press Ctrl+C to stop)...")
+            print("=" * 50)
+            print("Commands:")
+            print("  'data' - Send single posture data sample")
+            print("=" * 50)
+            print(f"DEBUG: Waiting for messages at {time.strftime('%H:%M:%S')}")
+
+            msg_counter = 0
             while True:
-                while not self.http_client.last_session_status:
-                    await asyncio.sleep(1)
+                while not self.settings.get("last_session_status", False):
+                    await self.websocket_client.get_settings()
                 # Read frame from webcam
                 success, frame = self.camera_manager.read_frame()
 
