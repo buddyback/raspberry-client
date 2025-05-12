@@ -10,7 +10,7 @@ import sys
 import websockets
 from PyQt6.QtWidgets import QApplication
 from dotenv import load_dotenv
-from qasync import QEventLoop
+from qasync import QEventLoop, QApplication as QAsyncApplication
 
 from config.settings import DEFAULT_CAMERA_HEIGHT, DEFAULT_CAMERA_WIDTH
 from detector.posture_detector import PostureDetector
@@ -62,6 +62,11 @@ async def main():
     args = parse_arguments()
 
     try:
+        # Initialize Qt application with qasync integration
+        app = QAsyncApplication(sys.argv)
+        loop = QEventLoop(app)
+        asyncio.set_event_loop(loop)
+
         # Initialize camera with specified dimensions
         camera_manager = CameraManager(
             camera_index=args.camera,
@@ -78,39 +83,38 @@ async def main():
         async with websockets.connect(websocket_client.uri) as websocket:
             websocket_client.websocket = websocket
 
-        # Initialize HTTP client for sending data
-            # http_client = HttpClient(
-            #     api_key=os.getenv("API_KEY"), base_url=os.getenv("API_BASE_URL"), device_id=os.getenv("DEVICE_ID")
-            # )
-            # http_client.start_polling()
-
+            # Initialize app controller first
+            app_controller = MainAppController()
+            
             # Initialize posture detector
-            app = QApplication(sys.argv)
             detector = PostureDetector(
                 camera_manager=camera_manager,
                 show_guidance=not args.no_guidance,
                 model_complexity=args.model,
-                # http_client=http_client,
                 websocket_client=websocket_client,
-                app_controller=MainAppController()
+                app_controller=app_controller
             )
-            detector.app_controller.start()
-            # Run the detector as a task
+            
+            # Start the app controller
+            app_controller.start()
+            
+            # Run the detector task
             detector_task = asyncio.create_task(detector.run())
 
             # Wait for either the detector to finish or KeyboardInterrupt
             try:
+                # This ensures the event loop keeps running
                 await detector_task
-                # sys.exit(app.exec())
             except KeyboardInterrupt:
                 print("\nApplication terminated by user")
                 detector.cleanup_and_exit()
-            app = QApplication(sys.argv)
-
+                
     except websockets.exceptions.ConnectionClosed as e:
         print(f"Connection closed with code {e.code}: {e.reason}")
     except Exception as e:
         print(f"Error: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
 
     return 0
 

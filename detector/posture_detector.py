@@ -147,12 +147,28 @@ class PostureDetector(QObject):
     def cleanup_and_exit(self, signum=None, frame=None):
         """Clean up resources and exit the program"""
         print("\nShutting down posture detector...")
+        # Release camera and destroy OpenCV windows
         if self.camera_manager.is_open():
             self.camera_manager.release()
         cv2.destroyAllWindows()
-        for task in asyncio.all_tasks():
-            task.cancel()
-        sys.exit(0)
+        
+        # Hide PyQt windows
+        if self.app_controller:
+            if hasattr(self.app_controller, 'main_screen') and self.app_controller.main_screen:
+                self.app_controller.main_screen.hide()
+            if hasattr(self.app_controller, 'posture_window') and self.app_controller.posture_window:
+                self.app_controller.posture_window.hide()
+        
+        # Cancel all tasks
+        try:
+            for task in asyncio.all_tasks():
+                if task != asyncio.current_task():
+                    task.cancel()
+        except Exception as e:
+            print(f"Error canceling tasks: {e}")
+        
+        # Exit forcefully to ensure complete termination
+        os._exit(0)
 
     def extract_landmarks(self, pose_landmarks, frame_width, frame_height):
         """
