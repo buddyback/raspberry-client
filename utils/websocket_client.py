@@ -1,11 +1,11 @@
 import asyncio
 import json
-import random
 import sys
 import time
 
 # Client heartbeat interval (in seconds)
 HEARTBEAT_INTERVAL = 1
+
 
 # TODO: Move the websocket logic to posture detector and use this only for sending data
 class WebSocketClient:
@@ -103,7 +103,6 @@ class WebSocketClient:
                 # if 'user_task' in locals() and user_task:
                 #     user_task.cancel()
 
-
     async def send_heartbeats(self):
         """Periodically send heartbeats to the server"""
         while self.heartbeat_running:
@@ -133,35 +132,32 @@ class WebSocketClient:
                 settings = response_object.get("data", {})
 
         return settings
-            # Check if we already have an active session
-            # if isinstance(initial_data, dict) and initial_data.get("data"):
-            #     last_session_status = initial_data.get("data", {}).get("has_active_session", False)
-            # elif isinstance(initial_data, dict):
-            #     last_session_status = initial_data.get("has_active_session", False)
+        # Check if we already have an active session
+        # if isinstance(initial_data, dict) and initial_data.get("data"):
+        #     last_session_status = initial_data.get("data", {}).get("has_active_session", False)
+        # elif isinstance(initial_data, dict):
+        #     last_session_status = initial_data.get("has_active_session", False)
 
-    async def send_single_posture_reading(self, results):
+    async def send_posture_data(self, results):
         """Send a single posture reading with randomized scores"""
         # Generate somewhat realistic scores (weighted towards medium-good posture)
-        neck_score = random.randint(50, 95)
-        torso_score = random.randint(60, 95)
-        shoulders_score = random.randint(55, 90)
 
         # Create posture data payload
         posture_data = {
             "type": "posture_data",
             "data": {
                 "components": [
-                    {"component_type": "neck", "score": neck_score},
-                    {"component_type": "torso", "score": torso_score},
-                    {"component_type": "shoulders", "score": shoulders_score},
+                    {"component_type": "neck", "score": int(results.get("neck_score"))},
+                    {"component_type": "torso", "score": int(results.get("torso_score"))},
+                    {"component_type": "shoulders", "score": int(results.get("shoulders_score"))},
                 ]
             },
         }
 
         # Send data and print what we're sending
-        print(f"\n📤 Sending posture data: neck={neck_score}, torso={torso_score}, shoulders={shoulders_score}")
+        # print(f"\n📤 Sending posture data: neck={neck_score}, torso={torso_score}, shoulders={shoulders_score}")
+        print(f"\n📤 Sending posture data: {posture_data}")
         await self.websocket.send(json.dumps(posture_data))
-
 
     async def process_user_commands(self):
         """Process user commands from stdin while WebSocket is running"""

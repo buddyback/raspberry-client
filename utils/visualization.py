@@ -312,7 +312,7 @@ def draw_status_bar(frame, analysis_results):
         )
 
     # Display alignment status
-    alignment = analysis_results.get("shoulder_offset", 0)
+    alignment = analysis_results.get("shoulders_offset", 0)
     if alignment < 100:
         align_text = f"Shoulders Aligned ({int(alignment)})"
         align_color = COLORS["green"]

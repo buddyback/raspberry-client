@@ -124,25 +124,19 @@ class PostureDetector:
 
         return average_scores
 
-    def _maybe_send_posture(self, current_posture, analysis_results):
+    def _maybe_send_posture(self, analysis_results):
         if os.getenv("DISABLE_TELEMETRY", False).lower() in ["true", "1", "yes"]:
             return
 
         now = time.time()
-        posture_changed = current_posture != self.last_sent_posture
-        # todo we don't want to send data on each change, it does not make sense
-
         time_passed = now - self.last_sent_time > self.SEND_INTERVAL
 
-        if posture_changed or time_passed:
+        if time_passed:
             # self._prepare_data()
-
-            components = self._get_average_score(SLIDING_WINDOW_DURATION)
-
-            print(f"[Posture Update] Sending data (posture changed: {posture_changed})")
-            self.http_client.send_posture_data(components)
+            components = self._get_average_score(self.SEND_INTERVAL)
+            print(f"[Posture Update] Sending data: {components}")
+            asyncio.create_task(self.websocket_client.send_posture_data(components))
             self.last_sent_time = now
-            self.last_sent_posture = current_posture
             return True
 
         return False
@@ -153,6 +147,8 @@ class PostureDetector:
         if self.camera_manager.is_open():
             self.camera_manager.release()
         cv2.destroyAllWindows()
+        for task in asyncio.all_tasks():
+            task.cancel()
         sys.exit(0)
 
     def extract_landmarks(self, pose_landmarks, frame_width, frame_height):
@@ -299,30 +295,33 @@ class PostureDetector:
             return frame
 
         # Analyze posture
-        analysis_results = self.analyzer.analyze_posture(landmarks, self.http_client.last_sensitivity)
+        analysis_results = self.analyzer.analyze_posture(landmarks, self.settings.get("sensitivity", -1))
 
         self._update_history(analysis_results)
-
+        has_sent = self._maybe_send_posture(analysis_results)
+        if has_sent:
+            last_sent = self.last_sent_time
 
         # todo if person not visible, show to display
 
         # todo if is sitted for long, start idle stuff
 
-        # If the last posture is bad then...
-        if not analysis_results["good_posture"]:
-            scores = self._get_average_score(SLIDING_WINDOW_DURATION)
-            sensitivity = self.http_client.last_sensitivity
-
-            # For each component, check if the score is below the sensitivity threshold to trigger alert
-            for component, score in scores.items():
-                if score < sensitivity:
-                    print("your average is very bad bro:", component, "is", score)
-                    now = datetime.now()
-                    if self.last_alert_time is None or now - self.last_alert_time > timedelta(seconds=WARNING_COOLDOWN):
-                        await self.gpio_client.long_alert()
-                        # asyncio.create_task(self.gpio_client.long_alert()) # todo decide if we want to use this
-                        self.last_alert_time = now
-                        # todo alert to display
+        if os.getenv("DISABLE_VIBRATION", False).lower() not in ["true", "1", "yes"]:
+            # If the last posture is bad then...
+            if not analysis_results["good_posture"]:
+                scores = self._get_average_score(SLIDING_WINDOW_DURATION)
+                sensitivity = self.settings.get("sensitivity", -1)
+                # For each component, check if the score is below the sensitivity threshold to trigger alert
+                for component, score in scores.items():
+                    if score < sensitivity:
+                        print("your average is very bad bro:", component, "is", score)
+                        now = datetime.now()
+                        if self.last_alert_time is None or now - self.last_alert_time > timedelta(
+                                seconds=WARNING_COOLDOWN):
+                            await self.gpio_client.long_alert()
+                            # asyncio.create_task(self.gpio_client.long_alert()) # todo decide if we want to use this
+                            self.last_alert_time = now
+                            # todo alert to display
 
         draw_landmarks(frame, landmarks)
 
@@ -450,7 +449,7 @@ class PostureDetector:
                 print(f"Error updating settings: {e}")
 
             # throttle your polling rate
-            # await asyncio.sleep(5)
+            # await asyncio.sleep(0.5)
 
     async def run(self):
         """Main function to run the posture detection"""
@@ -474,19 +473,20 @@ class PostureDetector:
             print("- Press 'f' to toggle fullscreen mode")
 
             self.settings = await self.websocket_client.get_settings()
-            print(f"Active session status: {'🟢 ACTIVE' if self.settings.get('has_active_session', False) else '🔴 INACTIVE'}")
+            print(
+                f"Active session status: {'🟢 ACTIVE' if self.settings.get('has_active_session', False) else '🔴 INACTIVE'}")
             # Request the settings again explicitly
             # await self.websocket.send(json.dumps({"type": "settings_request"}))
             # settings = await websocket.recv()
             # print(f"Requested settings: {json.loads(settings)}")
 
             # Start a background task for user commands
-            user_task = asyncio.create_task(self.websocket_client.process_user_commands())
+            asyncio.create_task(self.websocket_client.process_user_commands())
 
             # Start a background task for retrieving settings
             # settings_task = asyncio.create_task(self.websocket_client.get_settings())
 
-            heartbeat_task = asyncio.create_task(self.websocket_client.send_heartbeats())
+            asyncio.create_task(self.websocket_client.send_heartbeats())
 
             # Keep the connection open and listen for updates
             print("Listening for real-time updates (press Ctrl+C to stop)...")
@@ -497,36 +497,37 @@ class PostureDetector:
             print(f"DEBUG: Waiting for messages at {time.strftime('%H:%M:%S')}")
 
             asyncio.create_task(self.update_settings())
-            msg_counter = 0
+
             while True:
                 while not self.settings.get("has_active_session", False):
                     print("Waiting for active session...")
                     await asyncio.sleep(0.1)
                     continue
+
                 # Read frame from webcam
-                # success, frame = self.camera_manager.read_frame()
-                #
-                # if not success:
-                #     print("Error: Failed to capture image from webcam")
-                #     break
-                #
-                # # Process the frame
-                # processed_frame = await self.process_frame(frame)
-                #
-                # # Display the processed frame
-                # cv2.imshow(self.window_name, processed_frame)
-                #
-                # # Check for key press
-                # key = cv2.waitKey(1) & 0xFF
-                # if not self.handle_keyboard_input(key):
-                #     break
-                #
-                # # Check if window was closed
-                # if cv2.getWindowProperty(self.window_name, cv2.WND_PROP_VISIBLE) < 1:
-                #     print("Window closed by user")
-                #     break
-                #
-                # # Give other tasks a chance to run
+                success, frame = self.camera_manager.read_frame()
+
+                if not success:
+                    print("Error: Failed to capture image from webcam")
+                    break
+
+                # Process the frame
+                processed_frame = await self.process_frame(frame)
+
+                # Display the processed frame
+                cv2.imshow(self.window_name, processed_frame)
+
+                # Check for key press
+                key = cv2.waitKey(1) & 0xFF
+                if not self.handle_keyboard_input(key):
+                    break
+
+                # Check if window was closed
+                if cv2.getWindowProperty(self.window_name, cv2.WND_PROP_VISIBLE) < 1:
+                    print("Window closed by user")
+                    break
+
+                # Give other tasks a chance to run
                 await asyncio.sleep(0.1)
         except Exception as e:
             print(f"Error occurred: {str(e)}")
