@@ -5,13 +5,17 @@ Main entry point for the Posture Detector application.
 import argparse
 import asyncio
 import os
+import sys
 
 import websockets
+from PyQt6.QtWidgets import QApplication
 from dotenv import load_dotenv
+from qasync import QEventLoop
 
 from config.settings import DEFAULT_CAMERA_HEIGHT, DEFAULT_CAMERA_WIDTH
 from detector.posture_detector import PostureDetector
 from utils.camera import CameraManager
+from utils.visualization import PostureWindow, MainAppController
 from utils.websocket_client import WebSocketClient
 
 # Load environment variables from .env file
@@ -81,23 +85,27 @@ async def main():
             # http_client.start_polling()
 
             # Initialize posture detector
+            app = QApplication(sys.argv)
             detector = PostureDetector(
                 camera_manager=camera_manager,
                 show_guidance=not args.no_guidance,
                 model_complexity=args.model,
                 # http_client=http_client,
-                websocket_client=websocket_client
+                websocket_client=websocket_client,
+                app_controller=MainAppController()
             )
-
+            detector.app_controller.start()
             # Run the detector as a task
             detector_task = asyncio.create_task(detector.run())
 
             # Wait for either the detector to finish or KeyboardInterrupt
             try:
                 await detector_task
+                # sys.exit(app.exec())
             except KeyboardInterrupt:
                 print("\nApplication terminated by user")
                 detector.cleanup_and_exit()
+            app = QApplication(sys.argv)
 
     except websockets.exceptions.ConnectionClosed as e:
         print(f"Connection closed with code {e.code}: {e.reason}")

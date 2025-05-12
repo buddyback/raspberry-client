@@ -8,6 +8,7 @@ import signal
 import sys
 import time
 from datetime import datetime, timedelta
+from time import sleep
 
 import cv2
 import mediapipe as mp
@@ -31,12 +32,13 @@ from utils.visualization import (
     draw_status_bar,
     get_optimal_font_scale,
 )
+from PyQt6.QtCore import QObject, pyqtSignal
 
 
-class PostureDetector:
+class PostureDetector(QObject):
     """Main class for posture detection"""
 
-    def __init__(self, camera_manager, show_guidance=True, model_complexity=2, websocket_client=None):
+    def __init__(self, camera_manager, show_guidance=True, model_complexity=2, websocket_client=None, app_controller=None):
         """
         Initialize posture detector
 
@@ -44,9 +46,10 @@ class PostureDetector:
             camera_manager: CameraManager instance for handling video capture
             show_guidance: Whether to show posture correction guidance
         """
+        super().__init__()
         self.camera_manager = camera_manager
         self.show_guidance = show_guidance
-
+        self.posture_data_updated = pyqtSignal(dict)
         # Initialize frame counters
         self.good_frames = 0
         self.bad_frames = 0
@@ -78,7 +81,7 @@ class PostureDetector:
         self.SEND_INTERVAL = SEND_INTERVAL  # seconds
 
         self.history = []
-
+        self.app_controller = app_controller
         self.websocket_client = websocket_client
         # self.http_client = http_client
         self.settings = {}
@@ -118,7 +121,7 @@ class PostureDetector:
             scores = [entry[1][score_key] for entry in filtered_history]
             # Calculate the average score
             if len(scores) > 0:
-                average_scores[score_key] = sum(scores) / len(scores)
+                average_scores[score_key] = int(sum(scores) / len(scores))
             else:
                 average_scores[score_key] = 0
 
@@ -305,6 +308,8 @@ class PostureDetector:
         # todo if person not visible, show to display
 
         # todo if is sitted for long, start idle stuff
+        scores = self._get_average_score(SLIDING_WINDOW_DURATION)
+        self.app_controller.posture_window.update_scores(scores)
 
         if os.getenv("DISABLE_VIBRATION", False).lower() not in ["true", "1", "yes"]:
             # If the last posture is bad then...
@@ -498,12 +503,15 @@ class PostureDetector:
 
             asyncio.create_task(self.update_settings())
 
+            self.app_controller.start()
+
             while True:
                 while not self.settings.get("has_active_session", False):
-                    print("Waiting for active session...")
+                    self.app_controller.start()  # Show main screen (session inactive)
                     await asyncio.sleep(0.1)
                     continue
 
+                self.app_controller.activate_session()
                 # Read frame from webcam
                 success, frame = self.camera_manager.read_frame()
 
