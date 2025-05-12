@@ -520,48 +520,63 @@ class PostureDetector(QObject):
 
             asyncio.create_task(self.update_settings())
             
-            # Get initial session state
-            session_active = self.settings.get("has_active_session", False)
-            print(f"Initial session status: {'🟢 ACTIVE' if session_active else '🔴 INACTIVE'}")
+            # Get initial session state. self.settings should be populated from an earlier call.
+            initial_session_active = self.settings.get("has_active_session", False)
+            print(f"Initial session status: {'🟢 ACTIVE' if initial_session_active else '🔴 INACTIVE'}")
             
-            # Initialize app with the correct window based on current session state
-            if session_active:
-                self.app_controller.activate_session()
-            else:
+            # Ensure the main application window (assumed to be main_screen) is shown once and remains visible.
+            # This is key to preventing the window from closing/reopening on state changes.
+            if self.app_controller and hasattr(self.app_controller, 'main_screen') and self.app_controller.main_screen:
                 self.app_controller.main_screen.show()
+            else:
+                print("ERROR: AppController or main_screen is not available. UI might not function correctly.")
+                # Depending on the application's design, you might want to handle this more gracefully,
+                # e.g., by exiting or raising an exception if the UI is critical.
+                # For now, we'll proceed, but this indicates a potential setup issue.
+
+            # Set the initial content/view within the main window.
+            # It's assumed that activate_session() and end_session() will now update the
+            # content of the already visible main_screen, rather than managing window visibility.
+            if initial_session_active:
+                if self.app_controller:
+                    self.app_controller.activate_session()
+            else:
+                if self.app_controller:
+                    self.app_controller.end_session() # Assumes end_session sets the 'inactive' view
             
             # Track the current session state to detect changes
-            current_session_active = session_active
+            current_session_active = initial_session_active
             
-            # Give the UI a moment to properly initialize
+            # Give the UI a moment to properly initialize its content
             await asyncio.sleep(0.2)
 
             while True:
-                # Check if session state changed
-                session_active = self.settings.get("has_active_session", False)
+                # Check if session state changed by reading the latest from settings
+                session_active_from_settings = self.settings.get("has_active_session", False)
                 
                 # Handle session state change
-                if current_session_active != session_active:
-                    print(f"Session state changed: {'🟢 ACTIVE' if session_active else '🔴 INACTIVE'}")
+                if current_session_active != session_active_from_settings:
+                    print(f"Session state changed: {'🟢 ACTIVE' if session_active_from_settings else '🔴 INACTIVE'}")
                     
-                    if session_active:
-                        # Session activated: switch to posture window
-                        self.app_controller.activate_session()
-                    else:
-                        # Session deactivated: switch back to main screen
-                        self.app_controller.end_session()
+                    if self.app_controller:
+                        if session_active_from_settings:
+                            # Session activated: switch view within the main window
+                            self.app_controller.activate_session()
+                        else:
+                            # Session deactivated: switch view within the main window
+                            self.app_controller.end_session()
                     
                     # Update tracking variable
-                    current_session_active = session_active
+                    current_session_active = session_active_from_settings
                     
-                    # Give the UI a moment to process the transition
-                    await asyncio.sleep(0.2)
+                    # Give the UI a moment to process the content transition
+                    await asyncio.sleep(0.2) 
                 
                 # If no active session, just wait and check again
-                if not session_active:
+                if not current_session_active:
                     # Process events while waiting to ensure UI remains responsive
                     QApplication.processEvents()
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(0.5) # Check settings periodically
                     continue
                 
                 # Read frame from webcam

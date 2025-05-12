@@ -405,7 +405,8 @@ def draw_posture_indicator(frame, good_posture):
 
 import sys
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QProgressBar
+    QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QProgressBar,
+    QMainWindow, QStackedWidget
 )
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
@@ -464,19 +465,40 @@ class StatusWidget(QWidget):
 
 class MainAppController:
     def __init__(self):
-        self.main_screen = MainScreen(controller=self)
-        self.posture_window = PostureWindow()
+        self.window = QMainWindow()  # Main application window
+        self.window.setWindowTitle("BuddyBack")
+        # Set a fixed size for the main window, consistent with original views
+        self.window.setFixedSize(400, 400)
+
+        self.stacked_widget = QStackedWidget()
+        self.window.setCentralWidget(self.stacked_widget)
+
+        # Create the two views (pages for the QStackedWidget)
+        self.inactive_view = MainScreen(controller=self)  # "Session is not active" view
+        self.active_view = PostureWindow()                # Posture status view
+
+        # Add views to the stacked widget
+        self.stacked_widget.addWidget(self.inactive_view)
+        self.stacked_widget.addWidget(self.active_view)
+
+        # For compatibility with PostureDetector's existing references
+        self.main_screen = self.window  # app_controller.main_screen will refer to the QMainWindow
+        self.posture_window = self.active_view # app_controller.posture_window refers to the active_view for score updates
 
     def start(self):
-        self.main_screen.show()
+        """Shows the main window and sets the initial view to inactive."""
+        self.window.show()
+        self.stacked_widget.setCurrentWidget(self.inactive_view) # Default to inactive view
 
     def activate_session(self):
-        self.main_screen.hide()
-        self.posture_window.show()
+        """Switches the view to the active session (posture tracking)."""
+        self.stacked_widget.setCurrentWidget(self.active_view)
+        print("UI: Switched to active_view (PostureWindow)")
 
     def end_session(self):
-        self.posture_window.hide()
-        self.main_screen.show()
+        """Switches the view to the inactive session (main screen)."""
+        self.stacked_widget.setCurrentWidget(self.inactive_view)
+        print("UI: Switched to inactive_view (MainScreen)")
 
 class MainScreen(QWidget):
     def __init__(self, controller):
