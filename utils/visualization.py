@@ -3,6 +3,17 @@ Visualization utilities for the posture detector.
 """
 
 import cv2
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QProgressBar,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from config.settings import COLORS, FONT_FACE, PANEL_OPACITY, PANEL_PADDING, TEXT_PADDING
 
@@ -402,22 +413,6 @@ def draw_posture_indicator(frame, good_posture):
         color,
         thickness,
     )
-
-
-import sys
-
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import (
-    QApplication,
-    QHBoxLayout,
-    QLabel,
-    QMainWindow,
-    QProgressBar,
-    QStackedWidget,
-    QVBoxLayout,
-    QWidget,
-)
 
 
 class StatusWidget(QWidget):

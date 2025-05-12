@@ -5,10 +5,8 @@ Main posture detection module that integrates camera capture and posture analysi
 import asyncio
 import os
 import signal
-import sys
 import time
 from datetime import datetime, timedelta
-from time import sleep
 
 import cv2
 import mediapipe as mp
@@ -320,9 +318,7 @@ class PostureDetector(QObject):
         analysis_results = self.analyzer.analyze_posture(landmarks, self.settings.get("sensitivity", -1))
 
         self._update_history(analysis_results)
-        has_sent = self._maybe_send_posture(analysis_results)
-        if has_sent:
-            last_sent = self.last_sent_time
+        self._maybe_send_posture(analysis_results)
 
         # todo if person not visible, show to display
 

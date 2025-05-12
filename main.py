@@ -9,14 +9,13 @@ import sys
 
 import websockets
 from dotenv import load_dotenv
-from PyQt6.QtWidgets import QApplication
 from qasync import QApplication as QAsyncApplication
 from qasync import QEventLoop
 
 from config.settings import DEFAULT_CAMERA_HEIGHT, DEFAULT_CAMERA_WIDTH
 from detector.posture_detector import PostureDetector
 from utils.camera import CameraManager
-from utils.visualization import MainAppController, PostureWindow
+from utils.visualization import MainAppController
 from utils.websocket_client import WebSocketClient
 
 # Load environment variables from .env file

@@ -27,6 +27,7 @@ class WebSocketClient:
         print(f"Connecting to: {self.uri}")
         print(f"Current time: {time.strftime('%H:%M:%S')}")
 
+        previous_settings = {}
         while True:
             update = await self.websocket.recv()
             # msg_counter += 1
@@ -171,5 +172,5 @@ class WebSocketClient:
                 await self.send_single_posture_reading(self.websocket)
             elif command == "heartbeat":
                 # Send a manual heartbeat
-                print(f"❤️ Sending manual heartbeat")
+                print("❤️ Sending manual heartbeat")
                 await self.websocket.send(json.dumps({"type": "heartbeat"}))
