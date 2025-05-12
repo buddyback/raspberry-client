@@ -33,6 +33,7 @@ from utils.visualization import (
     get_optimal_font_scale,
 )
 from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtWidgets import QApplication
 
 
 class PostureDetector(QObject):
@@ -518,16 +519,51 @@ class PostureDetector(QObject):
             print(f"DEBUG: Waiting for messages at {time.strftime('%H:%M:%S')}")
 
             asyncio.create_task(self.update_settings())
-
-            self.app_controller.start()
+            
+            # Get initial session state
+            session_active = self.settings.get("has_active_session", False)
+            print(f"Initial session status: {'🟢 ACTIVE' if session_active else '🔴 INACTIVE'}")
+            
+            # Initialize app with the correct window based on current session state
+            if session_active:
+                self.app_controller.activate_session()
+            else:
+                self.app_controller.main_screen.show()
+            
+            # Track the current session state to detect changes
+            current_session_active = session_active
+            
+            # Give the UI a moment to properly initialize
+            await asyncio.sleep(0.2)
 
             while True:
-                while not self.settings.get("has_active_session", False):
-                    self.app_controller.start()  # Show main screen (session inactive)
-                    await asyncio.sleep(0.1)
+                # Check if session state changed
+                session_active = self.settings.get("has_active_session", False)
+                
+                # Handle session state change
+                if current_session_active != session_active:
+                    print(f"Session state changed: {'🟢 ACTIVE' if session_active else '🔴 INACTIVE'}")
+                    
+                    if session_active:
+                        # Session activated: switch to posture window
+                        self.app_controller.activate_session()
+                    else:
+                        # Session deactivated: switch back to main screen
+                        self.app_controller.end_session()
+                    
+                    # Update tracking variable
+                    current_session_active = session_active
+                    
+                    # Give the UI a moment to process the transition
+                    await asyncio.sleep(0.2)
+                
+                # If no active session, just wait and check again
+                if not session_active:
+                    # Process events while waiting to ensure UI remains responsive
+                    QApplication.processEvents()
+                    await asyncio.sleep(0.5)
                     continue
-
-                self.app_controller.activate_session()
+                
                 # Read frame from webcam
                 success, frame = self.camera_manager.read_frame()
 
