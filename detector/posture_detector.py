@@ -426,6 +426,32 @@ class PostureDetector:
 
         return True
 
+    async def update_settings(self):
+        """
+        Continuously pull the latest settings from the websocket client
+        and update self.settings, without ever exiting.
+        """
+        while True:
+            try:
+                # If websocket isn't ready yet, just wait and retry
+                # if not self.websocket_client.websocket or not self.websocket_client.websocket.open:
+                #     await asyncio.sleep(1)
+                #     continue
+                # print("here")
+                # Actually fetch the settings
+                new_settings = await self.websocket_client.get_settings()
+                if new_settings:
+                    self.settings = new_settings
+                    # (optional) print or log
+                    print(f"[settings] updated → {self.settings}")
+
+            except Exception as e:
+                # Log the error, but keep the loop alive
+                print(f"Error updating settings: {e}")
+
+            # throttle your polling rate
+            # await asyncio.sleep(5)
+
     async def run(self):
         """Main function to run the posture detection"""
         try:
@@ -470,34 +496,37 @@ class PostureDetector:
             print("=" * 50)
             print(f"DEBUG: Waiting for messages at {time.strftime('%H:%M:%S')}")
 
+            asyncio.create_task(self.update_settings())
             msg_counter = 0
             while True:
-                while not self.settings.get("last_session_status", False):
-                    await self.websocket_client.get_settings()
+                while not self.settings.get("has_active_session", False):
+                    print("Waiting for active session...")
+                    await asyncio.sleep(0.1)
+                    continue
                 # Read frame from webcam
-                success, frame = self.camera_manager.read_frame()
-
-                if not success:
-                    print("Error: Failed to capture image from webcam")
-                    break
-
-                # Process the frame
-                processed_frame = await self.process_frame(frame)
-
-                # Display the processed frame
-                cv2.imshow(self.window_name, processed_frame)
-
-                # Check for key press
-                key = cv2.waitKey(1) & 0xFF
-                if not self.handle_keyboard_input(key):
-                    break
-
-                # Check if window was closed
-                if cv2.getWindowProperty(self.window_name, cv2.WND_PROP_VISIBLE) < 1:
-                    print("Window closed by user")
-                    break
-
-                # Give other tasks a chance to run
+                # success, frame = self.camera_manager.read_frame()
+                #
+                # if not success:
+                #     print("Error: Failed to capture image from webcam")
+                #     break
+                #
+                # # Process the frame
+                # processed_frame = await self.process_frame(frame)
+                #
+                # # Display the processed frame
+                # cv2.imshow(self.window_name, processed_frame)
+                #
+                # # Check for key press
+                # key = cv2.waitKey(1) & 0xFF
+                # if not self.handle_keyboard_input(key):
+                #     break
+                #
+                # # Check if window was closed
+                # if cv2.getWindowProperty(self.window_name, cv2.WND_PROP_VISIBLE) < 1:
+                #     print("Window closed by user")
+                #     break
+                #
+                # # Give other tasks a chance to run
                 await asyncio.sleep(0.1)
         except Exception as e:
             print(f"Error occurred: {str(e)}")

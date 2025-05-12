@@ -5,7 +5,7 @@ import sys
 import time
 
 # Client heartbeat interval (in seconds)
-HEARTBEAT_INTERVAL = 30
+HEARTBEAT_INTERVAL = 1
 
 # TODO: Move the websocket logic to posture detector and use this only for sending data
 class WebSocketClient:
@@ -125,14 +125,14 @@ class WebSocketClient:
         # First, receive the initial settings
         response = await self.websocket.recv()
         response_object = json.loads(response)
+        settings = None
 
-        if isinstance(response_object, dict) and response_object.get("data") and response_object.get("type") == "settings":
+        if response_object.get("type") == "settings":
             # Extract the actual settings data
-            data = response_object.get("data", {})
-            print("Settings received:", data)
-            return data
+            if response_object.get("data"):
+                settings = response_object.get("data", {})
 
-        return {}
+        return settings
             # Check if we already have an active session
             # if isinstance(initial_data, dict) and initial_data.get("data"):
             #     last_session_status = initial_data.get("data", {}).get("has_active_session", False)
