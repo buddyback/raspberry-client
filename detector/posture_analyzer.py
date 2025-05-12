@@ -97,7 +97,7 @@ class PostureAnalyzer:
         results = {
             "neck_angle": None,
             "torso_angle": None,
-            "shoulder_offset": None,
+            "shoulders_offset": None,
             "good_posture": False,
             "issues": {},
             "webcam_position": None,
@@ -194,7 +194,7 @@ class PostureAnalyzer:
                 hip_x, hip_y = r_hip
 
         # Calculate shoulder offset
-        results["shoulder_offset"] = self.calculate_distance(l_shldr_x, l_shldr_y, r_shldr_x, r_shldr_y)
+        results["shoulders_offset"] = self.calculate_distance(l_shldr_x, l_shldr_y, r_shldr_x, r_shldr_y)
 
         # Calculate angles
         results["neck_angle"] = self.calculate_angle(shoulder_x, shoulder_y, ear_x, ear_y)
@@ -223,7 +223,7 @@ class PostureAnalyzer:
 
         results["neck_score"] = self.compute_score(NECK_SCORE_MAP, positive_neck_angle)
         results["torso_score"] = self.compute_score(TORSO_SCORE_MAP, positive_torso_angle)
-        results["shoulder_score"] = self.compute_score(SHOULDERS_SCORE_MAP, results["shoulder_offset"])
+        results["shoulders_score"] = self.compute_score(SHOULDERS_SCORE_MAP, results["shoulders_offset"])
 
         results["good_posture"] = (
             results["neck_score"] >= sensitivity
@@ -238,7 +238,7 @@ class PostureAnalyzer:
         if results["torso_angle"] < sensitivity:
             results["issues"]["torso"] = "Sit upright"
 
-        if results["shoulder_offset"] < sensitivity:
+        if results["shoulders_offset"] < sensitivity:
             results["issues"]["shoulders"] = "Face the screen"
 
         return results

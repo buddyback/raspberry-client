@@ -3,6 +3,17 @@ Visualization utilities for the posture detector.
 """
 
 import cv2
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QProgressBar,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from config.settings import COLORS, FONT_FACE, PANEL_OPACITY, PANEL_PADDING, TEXT_PADDING
 
@@ -312,7 +323,7 @@ def draw_status_bar(frame, analysis_results):
         )
 
     # Display alignment status
-    alignment = analysis_results.get("shoulder_offset", 0)
+    alignment = analysis_results.get("shoulders_offset", 0)
     if alignment < 100:
         align_text = f"Shoulders Aligned ({int(alignment)})"
         align_color = COLORS["green"]
@@ -402,3 +413,191 @@ def draw_posture_indicator(frame, good_posture):
         color,
         thickness,
     )
+
+
+class StatusWidget(QWidget):
+    def __init__(self, image_path, label_text, score):
+        super().__init__()
+
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Icon
+        icon_label = QLabel()
+        pixmap = QPixmap(image_path).scaled(
+            64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+        )
+        icon_label.setPixmap(pixmap)
+        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(icon_label)
+
+        # Label text
+        text_label = QLabel(label_text)
+        text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        text_label.setStyleSheet("color: black; font-weight: bold;")
+        layout.addWidget(text_label)
+
+        # Progress bar
+        self.progress = QProgressBar()
+        self.progress.setFixedWidth(100)
+        self.progress.setValue(score)
+        self.progress.setTextVisible(True)
+        self.progress.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Determine color based on score
+        if score > 60:
+            color = "green"
+        elif score > 30:
+            color = "yellow"
+        else:
+            color = "red"
+
+        # Stylesheet with black border and text
+        self.progress.setStyleSheet(
+            f"""
+            QProgressBar {{
+                border: 2px solid black;
+                border-radius: 5px;
+                text-align: center;
+                color: black;
+                background-color: #f0f0f0;
+            }}
+            QProgressBar::chunk {{
+                background-color: {color};
+            }}
+        """
+        )
+
+        layout.addWidget(self.progress)
+        self.setLayout(layout)
+
+
+class MainAppController:
+    def __init__(self):
+        self.window = QMainWindow()  # Main application window
+        self.window.setWindowTitle("BuddyBack")
+        # Set a fixed size for the main window, consistent with original views
+        self.window.setFixedSize(400, 400)
+
+        self.stacked_widget = QStackedWidget()
+        self.window.setCentralWidget(self.stacked_widget)
+
+        # Create the two views (pages for the QStackedWidget)
+        self.inactive_view = MainScreen(controller=self)  # "Session is not active" view
+        self.active_view = PostureWindow()  # Posture status view
+
+        # Add views to the stacked widget
+        self.stacked_widget.addWidget(self.inactive_view)
+        self.stacked_widget.addWidget(self.active_view)
+
+        # For compatibility with PostureDetector's existing references
+        self.main_screen = self.window  # app_controller.main_screen will refer to the QMainWindow
+        self.posture_window = (
+            self.active_view
+        )  # app_controller.posture_window refers to the active_view for score updates
+
+    def start(self):
+        """Shows the main window and sets the initial view to inactive."""
+        self.window.show()
+        self.stacked_widget.setCurrentWidget(self.inactive_view)  # Default to inactive view
+
+    def activate_session(self):
+        """Switches the view to the active session (posture tracking)."""
+        self.stacked_widget.setCurrentWidget(self.active_view)
+        print("UI: Switched to active_view (PostureWindow)")
+
+    def end_session(self):
+        """Switches the view to the inactive session (main screen)."""
+        self.stacked_widget.setCurrentWidget(self.inactive_view)
+        print("UI: Switched to inactive_view (MainScreen)")
+
+
+class MainScreen(QWidget):
+    def __init__(self, controller):
+        super().__init__()
+        self.controller = controller
+        self.setWindowTitle("BuddyBack")
+        self.setStyleSheet("background-color: black;")
+        self.setFixedSize(400, 400)
+
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        logo = QLabel()
+        pixmap = QPixmap("../images/logo.png").scaled(150, 150, Qt.AspectRatioMode.KeepAspectRatio)
+        logo.setPixmap(pixmap)
+        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        label = QLabel("Session is not active")
+        label.setStyleSheet("color: white; font-size: 18px;")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        layout.addWidget(logo)
+        layout.addWidget(label)
+        self.setLayout(layout)
+
+
+class PostureWindow(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Posture Status")
+        self.setStyleSheet("background-color: white;")
+        self.setFixedSize(400, 400)
+
+        # Layout setup
+        main_layout = QVBoxLayout()
+        main_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+
+        # Torso widget
+        self.torso_widget = StatusWidget("../images/torso.png", "Torso", 0)
+        self.torso_widget.setFixedSize(150, 150)
+        main_layout.addWidget(self.torso_widget, alignment=Qt.AlignmentFlag.AlignHCenter)
+
+        # Shoulders and neck
+        lower_row = QHBoxLayout()
+        lower_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.shoulders_widget = StatusWidget("../images/shoulders.png", "Shoulders", 0)
+        self.neck_widget = StatusWidget("../images/neck.png", "Neck", 0)
+
+        lower_row.addWidget(self.shoulders_widget)
+        lower_row.addSpacing(20)
+        lower_row.addWidget(self.neck_widget)
+
+        main_layout.addLayout(lower_row)
+        self.setLayout(main_layout)
+
+        # Posture detector
+
+    def update_scores(self, scores):
+        self.torso_widget.progress.setValue(scores.get("torso_score", 0))
+        self.shoulders_widget.progress.setValue(scores.get("shoulders_score", 0))
+        self.neck_widget.progress.setValue(scores.get("neck_score", 0))
+
+        # Optional: dynamically update bar color
+        self.update_progress_style(self.torso_widget.progress, scores.get("torso_score", 0))
+        self.update_progress_style(self.shoulders_widget.progress, scores.get("shoulders_score", 0))
+        self.update_progress_style(self.neck_widget.progress, scores.get("neck_score", 0))
+
+    def update_progress_style(self, progress_bar, score):
+        if score > 60:
+            color = "green"
+        elif score > 30:
+            color = "yellow"
+        else:
+            color = "red"
+
+        progress_bar.setStyleSheet(
+            f"""
+            QProgressBar {{
+                border: 2px solid black;
+                border-radius: 5px;
+                text-align: center;
+                color: black;
+                background-color: #f0f0f0;
+            }}
+            QProgressBar::chunk {{
+                background-color: {color};
+            }}
+        """
+        )
