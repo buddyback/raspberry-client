@@ -8,14 +8,15 @@ import os
 import sys
 
 import websockets
-from PyQt6.QtWidgets import QApplication
 from dotenv import load_dotenv
-from qasync import QEventLoop, QApplication as QAsyncApplication
+from PyQt6.QtWidgets import QApplication
+from qasync import QApplication as QAsyncApplication
+from qasync import QEventLoop
 
 from config.settings import DEFAULT_CAMERA_HEIGHT, DEFAULT_CAMERA_WIDTH
 from detector.posture_detector import PostureDetector
 from utils.camera import CameraManager
-from utils.visualization import PostureWindow, MainAppController
+from utils.visualization import MainAppController, PostureWindow
 from utils.websocket_client import WebSocketClient
 
 # Load environment variables from .env file
@@ -85,19 +86,19 @@ async def main():
 
             # Initialize app controller first
             app_controller = MainAppController()
-            
+
             # Initialize posture detector
             detector = PostureDetector(
                 camera_manager=camera_manager,
                 show_guidance=not args.no_guidance,
                 model_complexity=args.model,
                 websocket_client=websocket_client,
-                app_controller=app_controller
+                app_controller=app_controller,
             )
-            
+
             # Start the app controller
             app_controller.start()
-            
+
             # Run the detector task
             detector_task = asyncio.create_task(detector.run())
 
@@ -108,12 +109,13 @@ async def main():
             except KeyboardInterrupt:
                 print("\nApplication terminated by user")
                 detector.cleanup_and_exit()
-                
+
     except websockets.exceptions.ConnectionClosed as e:
         print(f"Connection closed with code {e.code}: {e.reason}")
     except Exception as e:
         print(f"Error: {type(e).__name__}: {str(e)}")
         import traceback
+
         traceback.print_exc()
 
     return 0

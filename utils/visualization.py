@@ -403,13 +403,22 @@ def draw_posture_indicator(frame, good_posture):
         thickness,
     )
 
+
 import sys
-from PyQt6.QtWidgets import (
-    QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QProgressBar,
-    QMainWindow, QStackedWidget
-)
-from PyQt6.QtGui import QPixmap
+
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import (
+    QApplication,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QProgressBar,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
+
 
 class StatusWidget(QWidget):
     def __init__(self, image_path, label_text, score):
@@ -420,7 +429,9 @@ class StatusWidget(QWidget):
 
         # Icon
         icon_label = QLabel()
-        pixmap = QPixmap(image_path).scaled(64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        pixmap = QPixmap(image_path).scaled(
+            64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+        )
         icon_label.setPixmap(pixmap)
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(icon_label)
@@ -447,7 +458,8 @@ class StatusWidget(QWidget):
             color = "red"
 
         # Stylesheet with black border and text
-        self.progress.setStyleSheet(f"""
+        self.progress.setStyleSheet(
+            f"""
             QProgressBar {{
                 border: 2px solid black;
                 border-radius: 5px;
@@ -458,10 +470,12 @@ class StatusWidget(QWidget):
             QProgressBar::chunk {{
                 background-color: {color};
             }}
-        """)
+        """
+        )
 
         layout.addWidget(self.progress)
         self.setLayout(layout)
+
 
 class MainAppController:
     def __init__(self):
@@ -475,7 +489,7 @@ class MainAppController:
 
         # Create the two views (pages for the QStackedWidget)
         self.inactive_view = MainScreen(controller=self)  # "Session is not active" view
-        self.active_view = PostureWindow()                # Posture status view
+        self.active_view = PostureWindow()  # Posture status view
 
         # Add views to the stacked widget
         self.stacked_widget.addWidget(self.inactive_view)
@@ -483,12 +497,14 @@ class MainAppController:
 
         # For compatibility with PostureDetector's existing references
         self.main_screen = self.window  # app_controller.main_screen will refer to the QMainWindow
-        self.posture_window = self.active_view # app_controller.posture_window refers to the active_view for score updates
+        self.posture_window = (
+            self.active_view
+        )  # app_controller.posture_window refers to the active_view for score updates
 
     def start(self):
         """Shows the main window and sets the initial view to inactive."""
         self.window.show()
-        self.stacked_widget.setCurrentWidget(self.inactive_view) # Default to inactive view
+        self.stacked_widget.setCurrentWidget(self.inactive_view)  # Default to inactive view
 
     def activate_session(self):
         """Switches the view to the active session (posture tracking)."""
@@ -499,6 +515,7 @@ class MainAppController:
         """Switches the view to the inactive session (main screen)."""
         self.stacked_widget.setCurrentWidget(self.inactive_view)
         print("UI: Switched to inactive_view (MainScreen)")
+
 
 class MainScreen(QWidget):
     def __init__(self, controller):
@@ -575,7 +592,8 @@ class PostureWindow(QWidget):
         else:
             color = "red"
 
-        progress_bar.setStyleSheet(f"""
+        progress_bar.setStyleSheet(
+            f"""
             QProgressBar {{
                 border: 2px solid black;
                 border-radius: 5px;
@@ -586,4 +604,5 @@ class PostureWindow(QWidget):
             QProgressBar::chunk {{
                 background-color: {color};
             }}
-        """)
+        """
+        )

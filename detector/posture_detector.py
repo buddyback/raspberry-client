@@ -12,6 +12,8 @@ from time import sleep
 
 import cv2
 import mediapipe as mp
+from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtWidgets import QApplication
 
 from config.settings import (
     BODY_COMPONENTS,
@@ -32,14 +34,14 @@ from utils.visualization import (
     draw_status_bar,
     get_optimal_font_scale,
 )
-from PyQt6.QtCore import QObject, pyqtSignal
-from PyQt6.QtWidgets import QApplication
 
 
 class PostureDetector(QObject):
     """Main class for posture detection"""
 
-    def __init__(self, camera_manager, show_guidance=True, model_complexity=2, websocket_client=None, app_controller=None):
+    def __init__(
+        self, camera_manager, show_guidance=True, model_complexity=2, websocket_client=None, app_controller=None
+    ):
         """
         Initialize posture detector
 
@@ -152,14 +154,14 @@ class PostureDetector(QObject):
         if self.camera_manager.is_open():
             self.camera_manager.release()
         cv2.destroyAllWindows()
-        
+
         # Hide PyQt windows
         if self.app_controller:
-            if hasattr(self.app_controller, 'main_screen') and self.app_controller.main_screen:
+            if hasattr(self.app_controller, "main_screen") and self.app_controller.main_screen:
                 self.app_controller.main_screen.hide()
-            if hasattr(self.app_controller, 'posture_window') and self.app_controller.posture_window:
+            if hasattr(self.app_controller, "posture_window") and self.app_controller.posture_window:
                 self.app_controller.posture_window.hide()
-        
+
         # Cancel all tasks
         try:
             for task in asyncio.all_tasks():
@@ -167,7 +169,7 @@ class PostureDetector(QObject):
                     task.cancel()
         except Exception as e:
             print(f"Error canceling tasks: {e}")
-        
+
         # Exit forcefully to ensure complete termination
         os._exit(0)
 
@@ -339,7 +341,8 @@ class PostureDetector(QObject):
                         print("your average is very bad bro:", component, "is", score)
                         now = datetime.now()
                         if self.last_alert_time is None or now - self.last_alert_time > timedelta(
-                                seconds=WARNING_COOLDOWN):
+                            seconds=WARNING_COOLDOWN
+                        ):
                             await self.gpio_client.long_alert()
                             # asyncio.create_task(self.gpio_client.long_alert()) # todo decide if we want to use this
                             self.last_alert_time = now
@@ -496,7 +499,8 @@ class PostureDetector(QObject):
 
             self.settings = await self.websocket_client.get_settings()
             print(
-                f"Active session status: {'🟢 ACTIVE' if self.settings.get('has_active_session', False) else '🔴 INACTIVE'}")
+                f"Active session status: {'🟢 ACTIVE' if self.settings.get('has_active_session', False) else '🔴 INACTIVE'}"
+            )
             # Request the settings again explicitly
             # await self.websocket.send(json.dumps({"type": "settings_request"}))
             # settings = await websocket.recv()
@@ -519,14 +523,14 @@ class PostureDetector(QObject):
             print(f"DEBUG: Waiting for messages at {time.strftime('%H:%M:%S')}")
 
             asyncio.create_task(self.update_settings())
-            
+
             # Get initial session state. self.settings should be populated from an earlier call.
             initial_session_active = self.settings.get("has_active_session", False)
             print(f"Initial session status: {'🟢 ACTIVE' if initial_session_active else '🔴 INACTIVE'}")
-            
+
             # Ensure the main application window (assumed to be main_screen) is shown once and remains visible.
             # This is key to preventing the window from closing/reopening on state changes.
-            if self.app_controller and hasattr(self.app_controller, 'main_screen') and self.app_controller.main_screen:
+            if self.app_controller and hasattr(self.app_controller, "main_screen") and self.app_controller.main_screen:
                 self.app_controller.main_screen.show()
             else:
                 print("ERROR: AppController or main_screen is not available. UI might not function correctly.")
@@ -542,22 +546,22 @@ class PostureDetector(QObject):
                     self.app_controller.activate_session()
             else:
                 if self.app_controller:
-                    self.app_controller.end_session() # Assumes end_session sets the 'inactive' view
-            
+                    self.app_controller.end_session()  # Assumes end_session sets the 'inactive' view
+
             # Track the current session state to detect changes
             current_session_active = initial_session_active
-            
+
             # Give the UI a moment to properly initialize its content
             await asyncio.sleep(0.2)
 
             while True:
                 # Check if session state changed by reading the latest from settings
                 session_active_from_settings = self.settings.get("has_active_session", False)
-                
+
                 # Handle session state change
                 if current_session_active != session_active_from_settings:
                     print(f"Session state changed: {'🟢 ACTIVE' if session_active_from_settings else '🔴 INACTIVE'}")
-                    
+
                     if self.app_controller:
                         if session_active_from_settings:
                             # Session activated: switch view within the main window
@@ -565,20 +569,20 @@ class PostureDetector(QObject):
                         else:
                             # Session deactivated: switch view within the main window
                             self.app_controller.end_session()
-                    
+
                     # Update tracking variable
                     current_session_active = session_active_from_settings
-                    
+
                     # Give the UI a moment to process the content transition
-                    await asyncio.sleep(0.2) 
-                
+                    await asyncio.sleep(0.2)
+
                 # If no active session, just wait and check again
                 if not current_session_active:
                     # Process events while waiting to ensure UI remains responsive
                     QApplication.processEvents()
-                    await asyncio.sleep(0.5) # Check settings periodically
+                    await asyncio.sleep(0.5)  # Check settings periodically
                     continue
-                
+
                 # Read frame from webcam
                 success, frame = self.camera_manager.read_frame()
 
