@@ -3,8 +3,8 @@ Visualization utilities for the posture detector.
 """
 
 import cv2
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtGui import QPixmap, QImage, QIcon
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QProgressBar,
     QStackedWidget,
     QVBoxLayout,
-    QWidget,
+    QWidget, QPushButton,
 )
 
 from config.settings import COLORS, FONT_FACE, PANEL_OPACITY, PANEL_PADDING, TEXT_PADDING
@@ -471,45 +471,90 @@ class StatusWidget(QWidget):
         layout.addWidget(self.progress)
         self.setLayout(layout)
 
-
 class MainAppController:
     def __init__(self):
-        self.window = QMainWindow()  # Main application window
+        # Main window
+        self.window = QMainWindow()
         self.window.setWindowTitle("BuddyBack")
-        # Set a fixed size for the main window, consistent with original views
-        self.window.setFixedSize(400, 400)
+        self.window.setFixedSize(800, 600)
 
+        # Main layout
+        central_widget = QWidget()
+        self.main_layout = QVBoxLayout()
+        central_widget.setLayout(self.main_layout)
+        self.window.setCentralWidget(central_widget)
+
+        # Navigation buttons at the top
+        self.button_container = QWidget()
+        self.button_bar = QHBoxLayout()
+        self.button_container.setLayout(self.button_bar)
+        self.main_layout.addWidget(self.button_container)
+
+        self.btn_posture = QPushButton()
+        self.btn_webcam = QPushButton()
+
+        # Set icons (replace with actual paths to your icon files)
+        self.btn_posture.setIcon(QIcon("images/posture.png"))  # Choose a posture icon
+        self.btn_webcam.setIcon(QIcon("images/camera.png"))  # Camera icon
+
+        # Set size and style
+        for btn in [self.btn_posture, self.btn_webcam]:
+            btn.setIconSize(QSize(32, 32))  # Set icon size
+            btn.setFixedSize(48, 48)  # Total button size
+            btn.setStyleSheet("""
+                QPushButton {
+                    background-color: white;
+                    border: 1px solid #ccc;
+                    border-radius: 6px;
+                }
+                QPushButton:hover {
+                    background-color: #f0f0f0;
+                }
+            """)
+
+        self.button_bar.addWidget(self.btn_posture)
+        self.button_bar.addWidget(self.btn_webcam)
+
+        # Stack of views
         self.stacked_widget = QStackedWidget()
-        self.window.setCentralWidget(self.stacked_widget)
+        self.main_layout.addWidget(self.stacked_widget)
 
-        # Create the two views (pages for the QStackedWidget)
         self.inactive_view = MainScreen(controller=self)  # "Session is not active" view
         self.active_view = PostureWindow()  # Posture status view
+        self.webcam_view = WebcamWindow()
 
-        # Add views to the stacked widget
-        self.stacked_widget.addWidget(self.inactive_view)
-        self.stacked_widget.addWidget(self.active_view)
+        self.stacked_widget.addWidget(self.inactive_view)  # index 0
+        self.stacked_widget.addWidget(self.active_view)  # index 1
+        self.stacked_widget.addWidget(self.webcam_view)  # index 2
+
+        # Connect buttons
+        self.btn_posture.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.active_view))
+        self.btn_webcam.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.webcam_view))
 
         # For compatibility with PostureDetector's existing references
         self.main_screen = self.window  # app_controller.main_screen will refer to the QMainWindow
         self.posture_window = (
             self.active_view
         )  # app_controller.posture_window refers to the active_view for score updates
+        self.window.stacked_widget = self.stacked_widget
 
     def start(self):
         """Shows the main window and sets the initial view to inactive."""
+        self.button_container.hide()  # Hide the button bar initially
         self.window.show()
         self.stacked_widget.setCurrentWidget(self.inactive_view)  # Default to inactive view
 
     def activate_session(self):
         """Switches the view to the active session (posture tracking)."""
         self.stacked_widget.setCurrentWidget(self.active_view)
-        print("UI: Switched to active_view (PostureWindow)")
+        self.button_container.show()
+        print("UI: Switched to active_view with webcam and posture metrics")
 
     def end_session(self):
         """Switches the view to the inactive session (main screen)."""
         self.stacked_widget.setCurrentWidget(self.inactive_view)
         print("UI: Switched to inactive_view (MainScreen)")
+        self.button_container.hide()
 
 
 class MainScreen(QWidget):
@@ -518,7 +563,7 @@ class MainScreen(QWidget):
         self.controller = controller
         self.setWindowTitle("BuddyBack")
         self.setStyleSheet("background-color: black;")
-        self.setFixedSize(400, 400)
+        self.setFixedSize(800, 600)
 
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -536,13 +581,110 @@ class MainScreen(QWidget):
         layout.addWidget(label)
         self.setLayout(layout)
 
+class WebcamWindow(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setMinimumSize(640, 480)
+
+        # Create layout
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        # Create label to display the webcam feed
+        self.image_label = QLabel()
+        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.image_label)
+
+        # Current frame and analysis results
+        self.current_frame = None
+        self.analysis_results = {}
+        self.landmarks = {}
+        self.neck_angle = 0
+        self.torso_angle = 0
+        self.good_posture = False
+
+    def update_frame(self, frame):
+        """
+        Update the widget with a new frame and visualization data
+
+        Args:
+            frame: The video frame (numpy array)
+            landmarks: Dictionary of detected landmarks
+            analysis_results: Dictionary of posture analysis results
+        """
+        if frame is None:
+            return
+
+        # Store data for visualization
+        self.current_frame = frame.copy()
+
+        # Apply all visualizations
+        self._apply_visualizations()
+
+        # Convert to Qt format and display
+        self._display_frame()
+
+    def _apply_visualizations(self):
+        """Apply all visualization functions to the current frame"""
+        if self.current_frame is None:
+            return
+
+        frame = self.current_frame.copy()
+
+        # Determine color based on posture status
+        color = COLORS["green"] if self.good_posture else COLORS["red"]
+
+        # Apply the visualization functions in sequence
+        if self.landmarks:
+            draw_landmarks(frame, self.landmarks, color)
+            draw_posture_lines(frame, self.landmarks, color)
+            draw_angle_text(frame, self.landmarks, self.neck_angle, self.torso_angle, color)
+
+        # Draw guidance and indicators if we have analysis results
+        if self.analysis_results:
+            draw_posture_guidance(frame, self.analysis_results)
+            draw_status_bar(frame, self.analysis_results)
+            draw_posture_indicator(frame, self.good_posture)
+
+        self.current_frame = frame
+
+    def _display_frame(self):
+        """Convert the processed frame to Qt format and display it"""
+        if self.current_frame is None:
+            return
+
+        # Convert the frame to RGB (from BGR)
+        rgb_frame = cv2.cvtColor(self.current_frame, cv2.COLOR_BGR2RGB)
+
+        # Create QImage from the frame
+        h, w, ch = rgb_frame.shape
+        bytes_per_line = ch * w
+        qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+
+        # Scale the image to fit the label while maintaining aspect ratio
+        pixmap = QPixmap.fromImage(qt_image)
+        pixmap = pixmap.scaled(
+            self.image_label.width(),
+            self.image_label.height(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+
+        # Display the image
+        self.image_label.setPixmap(pixmap)
+
+    def resizeEvent(self, event):
+        """Handle resize events to update the displayed frame"""
+        super().resizeEvent(event)
+        if self.current_frame is not None:
+            self._display_frame()
 
 class PostureWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Posture Status")
         self.setStyleSheet("background-color: white;")
-        self.setFixedSize(400, 400)
+        self.setFixedSize(800, 600)
 
         # Layout setup
         main_layout = QVBoxLayout()

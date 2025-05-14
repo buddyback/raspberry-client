@@ -38,7 +38,7 @@ class PostureDetector(QObject):
     """Main class for posture detection"""
 
     def __init__(
-        self, camera_manager, show_guidance=True, model_complexity=2, websocket_client=None, app_controller=None
+            self, camera_manager, show_guidance=True, model_complexity=2, websocket_client=None, app_controller=None
     ):
         """
         Initialize posture detector
@@ -46,11 +46,15 @@ class PostureDetector(QObject):
         Args:
             camera_manager: CameraManager instance for handling video capture
             show_guidance: Whether to show posture correction guidance
+            model_complexity: Complexity of the MediaPipe pose model (0, 1, or 2)
+            websocket_client: WebSocket client for sending/receiving data
+            app_controller: Controller for the PyQt application
         """
         super().__init__()
         self.camera_manager = camera_manager
         self.show_guidance = show_guidance
         self.posture_data_updated = pyqtSignal(dict)
+
         # Initialize frame counters
         self.good_frames = 0
         self.bad_frames = 0
@@ -71,10 +75,6 @@ class PostureDetector(QObject):
         signal.signal(signal.SIGINT, self.cleanup_and_exit)
         signal.signal(signal.SIGTERM, self.cleanup_and_exit)
 
-        # Window resize control
-        self.resize_mode = False
-        self.window_name = "Posture Detection"
-
         self.old_posture = None
 
         self.last_sent_time = time.time()
@@ -84,10 +84,7 @@ class PostureDetector(QObject):
         self.history = []
         self.app_controller = app_controller
         self.websocket_client = websocket_client
-        # self.http_client = http_client
         self.settings = {}
-
-        # self.gpio_client = PigpioClient()
 
     def _update_history(self, analysis_results):
         if analysis_results["webcam_placement"] != "good":
@@ -148,9 +145,11 @@ class PostureDetector(QObject):
     def cleanup_and_exit(self, signum=None, frame=None):
         """Clean up resources and exit the program"""
         print("\nShutting down posture detector...")
-        # Release camera and destroy OpenCV windows
+        # Release camera
         if self.camera_manager.is_open():
             self.camera_manager.release()
+
+        # Close any remaining OpenCV windows
         cv2.destroyAllWindows()
 
         # Hide PyQt windows
@@ -170,6 +169,23 @@ class PostureDetector(QObject):
 
         # Exit forcefully to ensure complete termination
         os._exit(0)
+
+    def handle_keyboard_input(self, key):
+        """
+        Handle keyboard input during the application
+        Note: This is a simplified version since we're not using OpenCV windows
+
+        Args:
+            key: Key pressed by user
+
+        Returns:
+            Boolean: True to continue, False to exit
+        """
+        if key == ord("q"):
+            return False
+
+        # All window resize functionality has been removed since we're not using OpenCV windows
+        return True
 
     def extract_landmarks(self, pose_landmarks, frame_width, frame_height):
         """
@@ -479,38 +495,21 @@ class PostureDetector(QObject):
             frame_width, frame_height = self.camera_manager.initialize()
             print(f"Camera initialized with resolution {frame_width}x{frame_height}")
 
-            # Create named window for display with more window control
-            cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
-
-            # Set initial window size to something reasonable
-            init_window_width = min(1280, frame_width * 1.5)
-            init_window_height = int(init_window_width * frame_height / frame_width)
-
-            cv2.resizeWindow(self.window_name, int(init_window_width), int(init_window_height))
-
             print("Posture detector running.")
             print("- Press 'q' to quit")
-            print("- Press 'r' to enter resize mode, then use arrow keys to resize camera frame")
-            print("- Press 'f' to toggle fullscreen mode")
 
             self.settings = await self.websocket_client.get_settings()
             print(
                 f"Active session status: {'🟢 ACTIVE' if self.settings.get('has_active_session', False) else '🔴 INACTIVE'}"
             )
-            # Request the settings again explicitly
-            # await self.websocket.send(json.dumps({"type": "settings_request"}))
-            # settings = await websocket.recv()
-            # print(f"Requested settings: {json.loads(settings)}")
 
             # Start a background task for user commands
             asyncio.create_task(self.websocket_client.process_user_commands())
 
-            # Start a background task for retrieving settings
-            # settings_task = asyncio.create_task(self.websocket_client.get_settings())
-
+            # Start a background task for sending heartbeats
             asyncio.create_task(self.websocket_client.send_heartbeats())
 
-            # Keep the connection open and listen for updates
+            # Listen for updates
             print("Listening for real-time updates (press Ctrl+C to stop)...")
             print("=" * 50)
             print("Commands:")
@@ -518,40 +517,35 @@ class PostureDetector(QObject):
             print("=" * 50)
             print(f"DEBUG: Waiting for messages at {time.strftime('%H:%M:%S')}")
 
+            # Start a task to continuously update settings
             asyncio.create_task(self.update_settings())
 
-            # Get initial session state. self.settings should be populated from an earlier call.
+            # Get initial session state
             initial_session_active = self.settings.get("has_active_session", False)
             print(f"Initial session status: {'🟢 ACTIVE' if initial_session_active else '🔴 INACTIVE'}")
 
-            # Ensure the main application window (assumed to be main_screen) is shown once and remains visible.
-            # This is key to preventing the window from closing/reopening on state changes.
+            # Ensure the main application window is shown
             if self.app_controller and hasattr(self.app_controller, "main_screen") and self.app_controller.main_screen:
                 self.app_controller.main_screen.show()
             else:
                 print("ERROR: AppController or main_screen is not available. UI might not function correctly.")
-                # Depending on the application's design, you might want to handle this more gracefully,
-                # e.g., by exiting or raising an exception if the UI is critical.
-                # For now, we'll proceed, but this indicates a potential setup issue.
 
-            # Set the initial content/view within the main window.
-            # It's assumed that activate_session() and end_session() will now update the
-            # content of the already visible main_screen, rather than managing window visibility.
+            # Set the initial view based on session state
             if initial_session_active:
                 if self.app_controller:
                     self.app_controller.activate_session()
             else:
                 if self.app_controller:
-                    self.app_controller.end_session()  # Assumes end_session sets the 'inactive' view
+                    self.app_controller.end_session()
 
-            # Track the current session state to detect changes
+            # Track the current session state
             current_session_active = initial_session_active
 
-            # Give the UI a moment to properly initialize its content
+            # Give the UI a moment to properly initialize
             await asyncio.sleep(0.2)
 
             while True:
-                # Check if session state changed by reading the latest from settings
+                # Check if session state changed
                 session_active_from_settings = self.settings.get("has_active_session", False)
 
                 # Handle session state change
@@ -560,10 +554,8 @@ class PostureDetector(QObject):
 
                     if self.app_controller:
                         if session_active_from_settings:
-                            # Session activated: switch view within the main window
                             self.app_controller.activate_session()
                         else:
-                            # Session deactivated: switch view within the main window
                             self.app_controller.end_session()
 
                     # Update tracking variable
@@ -589,24 +581,18 @@ class PostureDetector(QObject):
                 # Process the frame
                 processed_frame = await self.process_frame(frame)
 
-                # Display the processed frame
-                cv2.imshow(self.window_name, processed_frame)
+                # Display the processed frame in PyQt interface only
+                self.app_controller.webcam_view.update_frame(
+                    frame=processed_frame,
+                )
 
-                # Check for key press
-                key = cv2.waitKey(1) & 0xFF
-                if not self.handle_keyboard_input(key):
-                    break
-
-                # Check if window was closed
-                if cv2.getWindowProperty(self.window_name, cv2.WND_PROP_VISIBLE) < 1:
-                    print("Window closed by user")
-                    break
+                # Process Qt events to keep the UI responsive
+                QApplication.processEvents()
 
                 # Give other tasks a chance to run
                 await asyncio.sleep(0.1)
         except Exception as e:
             print(f"Error occurred: {str(e)}")
-            # print the stacktrace
             raise e
         finally:
             # Ensure cleanup always happens

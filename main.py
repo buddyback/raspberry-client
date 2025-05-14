@@ -121,5 +121,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    os.environ["QT_QPA_PLATFORM"] = "xcb"
     asyncio.run(main())
