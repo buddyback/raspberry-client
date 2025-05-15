@@ -346,7 +346,7 @@ class PostureDetector(QObject):
         # If the last posture is bad then...
         if not analysis_results["good_posture"]:
             scores = self._get_average_score(SLIDING_WINDOW_DURATION)
-            sensitivity = self.settings.get("sensitivity", -1)
+            sensitivity = self.settings.get("sensitivity", 50)
             # For each component, check if the score is below the sensitivity threshold to trigger alert
             for component, score in scores.items():
                 if score < sensitivity:
