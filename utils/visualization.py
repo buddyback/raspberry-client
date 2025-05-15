@@ -1,6 +1,7 @@
 """
 Visualization utilities for the posture detector.
 """
+import os
 
 import cv2
 from PyQt6.QtCore import Qt, QSize
@@ -477,7 +478,8 @@ class MainAppController:
         self.window = QMainWindow()
         self.window.setWindowTitle("BuddyBack")
         self.window.setFixedSize(800, 600)
-
+        if os.getenv("HIDE_TITLEBAR", 0) in ["1", "true", "True"]:
+            self.window.setWindowFlags(self.window.windowFlags() | Qt.WindowType.FramelessWindowHint)
         # Main layout
         central_widget = QWidget()
         self.main_layout = QVBoxLayout()
