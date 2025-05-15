@@ -477,7 +477,7 @@ class MainAppController:
         # Main window
         self.window = QMainWindow()
         self.window.setWindowTitle("BuddyBack")
-        self.window.setFixedSize(800, 600)
+        self.window.setFixedSize(800, 480)
         if os.getenv("HIDE_TITLEBAR", 0) in ["1", "true", "True"]:
             self.window.setWindowFlags(self.window.windowFlags() | Qt.WindowType.FramelessWindowHint)
         # Main layout
@@ -565,7 +565,7 @@ class MainScreen(QWidget):
         self.controller = controller
         self.setWindowTitle("BuddyBack")
         self.setStyleSheet("background-color: black;")
-        self.setFixedSize(800, 600)
+        self.setFixedSize(800, 480)
 
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -586,7 +586,7 @@ class MainScreen(QWidget):
 class WebcamWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setMinimumSize(640, 480)
+        self.setMinimumSize(800, 400)
 
         # Create layout
         layout = QVBoxLayout()
@@ -686,7 +686,7 @@ class PostureWindow(QWidget):
         super().__init__()
         self.setWindowTitle("Posture Status")
         self.setStyleSheet("background-color: white;")
-        self.setFixedSize(800, 600)
+        self.setFixedSize(800, 480)
 
         # Layout setup
         main_layout = QVBoxLayout()
