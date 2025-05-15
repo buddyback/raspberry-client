@@ -484,6 +484,7 @@ class PostureDetector(QObject):
             except Exception as e:
                 # Log the error, but keep the loop alive
                 print(f"Error updating settings: {e}")
+                await asyncio.sleep(1)  # Wait before retrying
 
             # throttle your polling rate
             # await asyncio.sleep(0.5)
