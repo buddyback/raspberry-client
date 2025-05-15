@@ -23,6 +23,7 @@ from config.settings import (
     WARNING_COOLDOWN,
 )
 from detector.posture_analyzer import PostureAnalyzer
+from utils.pigpio import PigpioClient
 from utils.visualization import (
     draw_angle_text,
     draw_landmarks,
@@ -85,6 +86,9 @@ class PostureDetector(QObject):
         self.app_controller = app_controller
         self.websocket_client = websocket_client
         self.settings = {}
+
+        if os.getenv("DISABLE_VIBRATION", False).lower() not in ["true", "1", "yes"]:
+            self.gpio_client = PigpioClient()
 
     def _update_history(self, analysis_results):
         if analysis_results["webcam_placement"] != "good":
@@ -339,23 +343,23 @@ class PostureDetector(QObject):
         scores = self._get_average_score(SLIDING_WINDOW_DURATION)
         self.app_controller.posture_window.update_scores(scores)
 
-        if os.getenv("DISABLE_VIBRATION", False).lower() not in ["true", "1", "yes"]:
-            # If the last posture is bad then...
-            if not analysis_results["good_posture"]:
-                scores = self._get_average_score(SLIDING_WINDOW_DURATION)
-                sensitivity = self.settings.get("sensitivity", -1)
-                # For each component, check if the score is below the sensitivity threshold to trigger alert
-                for component, score in scores.items():
-                    if score < sensitivity:
-                        print("your average is very bad bro:", component, "is", score)
-                        now = datetime.now()
-                        if self.last_alert_time is None or now - self.last_alert_time > timedelta(
-                            seconds=WARNING_COOLDOWN
-                        ):
+        # If the last posture is bad then...
+        if not analysis_results["good_posture"]:
+            scores = self._get_average_score(SLIDING_WINDOW_DURATION)
+            sensitivity = self.settings.get("sensitivity", -1)
+            # For each component, check if the score is below the sensitivity threshold to trigger alert
+            for component, score in scores.items():
+                if score < sensitivity:
+                    print("your average is very bad bro:", component, "is", score)
+                    now = datetime.now()
+                    if self.last_alert_time is None or now - self.last_alert_time > timedelta(
+                        seconds=WARNING_COOLDOWN
+                    ):
+                        if os.getenv("DISABLE_VIBRATION", False).lower() not in ["true", "1", "yes"]:
                             await self.gpio_client.long_alert()
                             # asyncio.create_task(self.gpio_client.long_alert()) # todo decide if we want to use this
-                            self.last_alert_time = now
-                            # todo alert to display
+                        self.last_alert_time = now
+                        # todo alert to display
 
         draw_landmarks(frame, landmarks)
 
