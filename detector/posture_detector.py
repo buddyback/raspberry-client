@@ -149,9 +149,6 @@ class PostureDetector(QObject):
         if self.camera_manager.is_open():
             self.camera_manager.release()
 
-        # Close any remaining OpenCV windows
-        cv2.destroyAllWindows()
-
         # Hide PyQt windows
         if self.app_controller:
             if hasattr(self.app_controller, "main_screen") and self.app_controller.main_screen:
