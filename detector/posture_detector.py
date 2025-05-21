@@ -25,8 +25,7 @@ from config.settings import (
 from detector.posture_analyzer import PostureAnalyzer
 from utils.pigpio import PigpioClient
 from utils.visualization import (
-    draw_status_bar,
-    get_optimal_font_scale,
+    get_optimal_font_scale, draw_landmarks, draw_posture_lines,
 )
 
 
@@ -322,9 +321,18 @@ class PostureDetector(QObject):
         self._update_history(analysis_results)
         self._maybe_send_posture(analysis_results)
 
+        last_scores = self._get_average_score(SLIDING_WINDOW_DURATION)
+        colors_to_use = {
+            component: COLORS["red"] if last_scores[BODY_COMPONENTS[component]["score"]] < sensitivity else COLORS[
+                "green"]
+            for component in ["neck", "torso", "shoulders"]
+        }
+
+        draw_posture_lines(frame, landmarks, colors_to_use)
+
         webcam_placement = analysis_results.get("webcam_placement", "unknown")
         # todo if is sitted for long, start idle stuff
-        last_scores = self._get_average_score(SLIDING_WINDOW_DURATION)
+
         results = {
             "scores": last_scores,
             "issues": dict()

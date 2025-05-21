@@ -57,14 +57,14 @@ def draw_landmarks(frame, landmarks, color=COLORS["yellow"]):
                 cv2.circle(frame, (x, y), radius, color, -1)
 
 
-def draw_posture_lines(frame, landmarks, color):
+def draw_posture_lines(frame, landmarks, colors):
     """
     Draw lines connecting landmarks to visualize posture
 
     Args:
         frame: Image frame to draw on
         landmarks: Dictionary of landmark coordinates
-        color: Color to use for drawing
+        colors: Colors to use for drawing
     """
     # Extract coordinates
     l_shldr = landmarks.get("l_shoulder", (None, None))
@@ -117,19 +117,33 @@ def draw_posture_lines(frame, landmarks, color):
     cv2.circle(frame, hip_ref, radius, COLORS["yellow"], -1)
 
     # Draw lines
-    line_pairs = [
-        (shoulder, ear),
-        (shoulder, shoulder_ref),
-        (hip, shoulder),
-        (hip, hip_ref),
-    ]
+    line_pairs = {
+        "neck": {
+            "points": (shoulder, ear),
+            "color": colors["neck"],
+        },
+        "shoulders": {
+            "points": (shoulder, shoulder_ref),
+            "color": colors["shoulders"],
+        },
+        "torso": {
+            "points": (hip, shoulder),
+            "color": colors["torso"],
+        }
+        # "hips": {
+        #     "points": (hip, hip_ref),
+        #     "color": colors["hips"],
+        # },
+    }
 
-    for start, end in line_pairs:
-        cv2.line(frame, start, end, color, thickness)
+
+    for component, data in line_pairs.items():
+        points = data["points"]
+        cv2.line(frame, points[0], points[1], data["color"], thickness)
 
     # Draw shoulder line to show alignment if both shoulders are available
     if all(x is not None for x in l_shldr) and all(x is not None for x in r_shldr):
-        cv2.line(frame, l_shldr, r_shldr, color, thickness)
+        cv2.line(frame, l_shldr, r_shldr, colors["shoulders"], thickness)
 
 
 def draw_angle_text(frame, landmarks, neck_angle, torso_angle, color):
