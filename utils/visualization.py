@@ -13,10 +13,9 @@ from PyQt6.QtWidgets import (
     QProgressBar,
     QStackedWidget,
     QVBoxLayout,
-    QWidget, QPushButton,
-)
+    QWidget, QPushButton, )
 
-from config.settings import COLORS, FONT_FACE, PANEL_OPACITY, PANEL_PADDING, TEXT_PADDING
+from config.settings import COLORS, FONT_FACE, PANEL_OPACITY, PANEL_PADDING, TEXT_PADDING, BODY_COMPONENTS
 
 
 def get_optimal_font_scale(frame_width):
@@ -287,9 +286,6 @@ def draw_status_bar(frame, analysis_results):
     font_scale = get_optimal_font_scale(w)
     thickness = max(1, int(w / 640))
 
-    # Extract timing information
-    good_time = analysis_results.get("good_time", 0)
-    bad_time = analysis_results.get("bad_time", 0)
     is_head_tilted_back = analysis_results.get("is_head_tilted_back", False)
 
     # Scale status bar height based on frame size
@@ -300,57 +296,12 @@ def draw_status_bar(frame, analysis_results):
 
     # Display posture time
     y_pos = h - int(status_height / 2)
-    if good_time > 0:
-        time_string = f"Good Posture Time: {round(good_time, 1)}s"
-        cv2.putText(
-            frame,
-            time_string,
-            (10, y_pos),
-            FONT_FACE,
-            font_scale,
-            COLORS["green"],
-            thickness,
-        )
-    else:
-        time_string = f"Bad Posture Time: {round(bad_time, 1)}s"
-        cv2.putText(
-            frame,
-            time_string,
-            (10, y_pos),
-            FONT_FACE,
-            font_scale,
-            COLORS["red"],
-            thickness,
-        )
-
-    # Display alignment status
-    alignment = analysis_results.get("shoulders_offset", 0)
-    if alignment < 100:
-        align_text = f"Shoulders Aligned ({int(alignment)})"
-        align_color = COLORS["green"]
-    else:
-        align_text = f"Shoulders Not Aligned ({int(alignment)})"
-        align_color = COLORS["red"]
-
-    # Position text on right side, accounting for text length
-    text_size = cv2.getTextSize(align_text, FONT_FACE, font_scale, thickness)[0]
-    x_pos = w - text_size[0] - 10
-    cv2.putText(
-        frame,
-        align_text,
-        (max(10, x_pos), y_pos),
-        FONT_FACE,
-        font_scale,
-        align_color,
-        thickness,
-    )
 
     # Display webcam position at the bottom-center
     webcam_pos = analysis_results.get("webcam_position", "unknown")
 
     # Create status text with head tilt information
     status_text = "HEAD BACK" if is_head_tilted_back else ""
-
     if webcam_pos != "unknown":
         if status_text:
             pos_text = f"Webcam: {webcam_pos.upper()} | {status_text}"
@@ -370,7 +321,6 @@ def draw_status_bar(frame, analysis_results):
             COLORS["yellow"],
             thickness,
         )
-
 
 def draw_posture_indicator(frame, good_posture):
     """
@@ -620,35 +570,9 @@ class WebcamWindow(QWidget):
         # Store data for visualization
         self.current_frame = frame.copy()
 
-        # Apply all visualizations
-        self._apply_visualizations()
-
         # Convert to Qt format and display
         self._display_frame()
 
-    def _apply_visualizations(self):
-        """Apply all visualization functions to the current frame"""
-        if self.current_frame is None:
-            return
-
-        frame = self.current_frame.copy()
-
-        # Determine color based on posture status
-        color = COLORS["green"] if self.good_posture else COLORS["red"]
-
-        # Apply the visualization functions in sequence
-        if self.landmarks:
-            draw_landmarks(frame, self.landmarks, color)
-            draw_posture_lines(frame, self.landmarks, color)
-            draw_angle_text(frame, self.landmarks, self.neck_angle, self.torso_angle, color)
-
-        # Draw guidance and indicators if we have analysis results
-        if self.analysis_results:
-            draw_posture_guidance(frame, self.analysis_results)
-            draw_status_bar(frame, self.analysis_results)
-            draw_posture_indicator(frame, self.good_posture)
-
-        self.current_frame = frame
 
     def _display_frame(self):
         """Convert the processed frame to Qt format and display it"""
@@ -713,15 +637,24 @@ class PostureWindow(QWidget):
 
         # Posture detector
 
-    def update_scores(self, scores):
-        self.torso_widget.progress.setValue(scores.get("torso_score", 0))
-        self.shoulders_widget.progress.setValue(scores.get("shoulders_score", 0))
-        self.neck_widget.progress.setValue(scores.get("neck_score", 0))
+    def update_results(self, results):
+        if scores := results["scores"]:
+            self.torso_widget.progress.setValue(scores.get(BODY_COMPONENTS["torso"]["score"], 0))
+            self.shoulders_widget.progress.setValue(scores.get(BODY_COMPONENTS["shoulders"]["score"], 0))
+            self.neck_widget.progress.setValue(scores.get(BODY_COMPONENTS["neck"]["score"], 0))
 
-        # Optional: dynamically update bar color
-        self.update_progress_style(self.torso_widget.progress, scores.get("torso_score", 0))
-        self.update_progress_style(self.shoulders_widget.progress, scores.get("shoulders_score", 0))
-        self.update_progress_style(self.neck_widget.progress, scores.get("neck_score", 0))
+            self.update_progress_style(self.torso_widget.progress, scores.get(BODY_COMPONENTS["torso"]["score"], 0))
+            self.update_progress_style(self.shoulders_widget.progress,
+                                       scores.get(BODY_COMPONENTS["shoulders"]["score"], 0))
+            self.update_progress_style(self.neck_widget.progress, scores.get(BODY_COMPONENTS["neck"]["score"], 0))
+
+        good_position_detected = "Good position"
+
+        if issues := results.get("issues"):
+            self.torso_widget.setToolTip(issues.get("torso", good_position_detected))
+            self.shoulders_widget.setToolTip(issues.get("shoulders", good_position_detected))
+            self.neck_widget.setToolTip(issues.get("neck", good_position_detected))
+
 
     def update_progress_style(self, progress_bar, score):
         if score > 60:

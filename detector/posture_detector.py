@@ -20,16 +20,11 @@ from config.settings import (
     FONT_FACE,
     SEND_INTERVAL,
     SLIDING_WINDOW_DURATION,
-    WARNING_COOLDOWN,
+    WARNING_COOLDOWN, ALERT_SLIDING_WINDOW_DURATION,
 )
 from detector.posture_analyzer import PostureAnalyzer
 from utils.pigpio import PigpioClient
 from utils.visualization import (
-    draw_angle_text,
-    draw_landmarks,
-    draw_posture_guidance,
-    draw_posture_indicator,
-    draw_posture_lines,
     draw_status_bar,
     get_optimal_font_scale,
 )
@@ -301,16 +296,17 @@ class PostureDetector(QObject):
 
         # Process the image with MediaPipe
         result = self.pose.process(rgb_frame)
-
-        # If no pose detected, return the original frame with message
+        webcam_placement_text = "Webcam Placement: "
+        webcam_placement_color = COLORS["red"]
         if not result.pose_landmarks:
+            webcam_placement_text += f"Person is not visible"
             cv2.putText(
                 frame,
-                "No pose detected",
+                webcam_placement_text,
                 (10, 30),
                 FONT_FACE,
                 font_scale,
-                COLORS["red"],
+                webcam_placement_color,
                 thickness,
             )
             return frame
@@ -318,96 +314,66 @@ class PostureDetector(QObject):
         # Extract landmarks
         landmarks = self.extract_landmarks(result.pose_landmarks, w, h)
 
-        # If landmarks extraction failed, return original frame
-        if not landmarks:
-            cv2.putText(
-                frame,
-                "Landmark extraction failed",
-                (10, 30),
-                FONT_FACE,
-                font_scale,
-                COLORS["red"],
-                thickness,
-            )
-            return frame
-
+        sensitivity = self.settings.get("sensitivity", -1)
         # Analyze posture
-        analysis_results = self.analyzer.analyze_posture(landmarks, self.settings.get("sensitivity", -1))
+        analysis_results = self.analyzer.analyze_posture(landmarks, sensitivity)
 
         self._update_history(analysis_results)
         self._maybe_send_posture(analysis_results)
 
-        # todo if person not visible, show to display
-
+        webcam_placement = analysis_results.get("webcam_placement", "unknown")
         # todo if is sitted for long, start idle stuff
-        scores = self._get_average_score(SLIDING_WINDOW_DURATION)
-        self.app_controller.posture_window.update_scores(scores)
+        last_scores = self._get_average_score(SLIDING_WINDOW_DURATION)
+        results = {
+            "scores": last_scores,
+            "issues": dict()
+        }
 
-        # If the last posture is bad then...
-        if not analysis_results["good_posture"]:
-            scores = self._get_average_score(SLIDING_WINDOW_DURATION)
-            sensitivity = self.settings.get("sensitivity", 50)
-            # For each component, check if the score is below the sensitivity threshold to trigger alert
-            for component, score in scores.items():
-                if score < sensitivity:
-                    print("your average is very bad bro:", component, "is", score)
-                    now = datetime.now()
-                    if self.last_alert_time is None or now - self.last_alert_time > timedelta(
-                        seconds=WARNING_COOLDOWN
-                    ):
-                        if os.getenv("DISABLE_VIBRATION", False).lower() not in ["true", "1", "yes"]:
+        if webcam_placement == "good":
+            if last_scores[BODY_COMPONENTS["neck"]["score"]] < sensitivity:
+                results["issues"]["neck"] = "Straighten your neck"
+
+            if last_scores[BODY_COMPONENTS["torso"]["score"]] < sensitivity:
+                results["issues"]["torso"] = "Sit upright"
+
+            if last_scores[BODY_COMPONENTS["shoulders"]["score"]] < sensitivity:
+                results["issues"]["shoulders"] = "Face the screen"
+
+        self.app_controller.posture_window.update_results(results)
+
+        if os.getenv("DISABLE_VIBRATION", False).lower() not in ["true", "1", "yes"]:
+            # If the last posture is bad then...
+            if not analysis_results["good_posture"]:
+                scores = self._get_average_score(ALERT_SLIDING_WINDOW_DURATION)
+                # For each component, check if the score is below the sensitivity threshold to trigger alert
+                for component, score in scores.items():
+                    if score < sensitivity:
+                        print("your average is very bad bro:", component, "is", score)
+                        now = datetime.now()
+                        if self.last_alert_time is None or now - self.last_alert_time > timedelta(
+                                seconds=WARNING_COOLDOWN
+                        ):
+
                             await self.gpio_client.long_alert()
                             # asyncio.create_task(self.gpio_client.long_alert()) # todo decide if we want to use this
                         self.last_alert_time = now
                         # todo alert to display
 
-        draw_landmarks(frame, landmarks)
-
-        # Update frame counters based on posture quality
-        if analysis_results["good_posture"]:
-            self.bad_frames = 0
-            self.good_frames += 1
-
-            # Draw lines with good posture color
-            draw_posture_lines(frame, landmarks, COLORS["green"])
-        else:
-            self.good_frames = 0
-            self.bad_frames += 1
-
-            # Draw lines with bad posture color
-            draw_posture_lines(frame, landmarks, COLORS["red"])
-
-        # Calculate timing values for UI
-        analysis_results["good_time"] = (1 / CAMERA_FPS) * self.good_frames
-        analysis_results["bad_time"] = (1 / CAMERA_FPS) * self.bad_frames
-
-        # Draw posture angles
-        color = COLORS["light_green"] if analysis_results["good_posture"] else COLORS["red"]
 
         # Update landmarks with head tilted back status for visualization
         landmarks["is_head_tilted_back"] = analysis_results["is_head_tilted_back"]
 
-        draw_angle_text(
-            frame,
-            landmarks,
-            analysis_results["neck_score"],
-            analysis_results["torso_score"],
-            color,
-        )
-
         # Add main angle text at top
-        angle_text = f'Neck: {int(analysis_results["neck_score"])}°  Torso: {int(analysis_results["torso_score"])}°'
-        cv2.putText(frame, angle_text, (10, 30), FONT_FACE, font_scale, color, thickness)
 
-        # Draw posture indicator (GOOD/BAD)
-        draw_posture_indicator(frame, analysis_results["good_posture"])
+        if webcam_placement != "good":
+            webcam_placement_text += f"{webcam_placement.upper()} is not visible"
+        else:
+            webcam_placement_text += webcam_placement
+            webcam_placement_color = COLORS["green"]
 
-        # Draw status bar
-        draw_status_bar(frame, analysis_results)
+        # text_size = cv2.getTextSize(webcam_placement_text, FONT_FACE, font_scale, thickness)[0]
+        cv2.putText(frame, webcam_placement_text, (10, 30), FONT_FACE, font_scale, webcam_placement_color, thickness)
 
-        # Draw posture correction guidance if enabled
-        if self.show_guidance and not analysis_results["good_posture"]:
-            frame = draw_posture_guidance(frame, analysis_results)
 
         return frame
 

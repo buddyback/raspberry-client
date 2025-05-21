@@ -39,10 +39,11 @@ DEFAULT_SENSITIVITY = 75
 BODY_COMPONENTS = {
     "neck": {"parameter": "neck_angle", "score": "neck_score"},
     "torso": {"parameter": "torso_angle", "score": "torso_score"},
-    "shoulder": {"parameter": "shoulders_offset", "score": "shoulders_score"},
+    "shoulders": {"parameter": "shoulders_offset", "score": "shoulders_score"},
 }
 
-SLIDING_WINDOW_DURATION = 120  # seconds
+ALERT_SLIDING_WINDOW_DURATION = 120  # seconds
+SLIDING_WINDOW_DURATION = 30 # seconds
 
 SEND_INTERVAL = 10  # seconds
 
