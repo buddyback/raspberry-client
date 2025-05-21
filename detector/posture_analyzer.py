@@ -141,15 +141,15 @@ class PostureAnalyzer:
         results["webcam_position"] = self.webcam_position
 
         results["webcam_placement"] = "good"
-        if (results["webcam_position"] == "right" and r_ear_vis < 0.99) or (
-            results["webcam_position"] == "left" and l_ear_vis < 0.99
+        if (results["webcam_position"] == "right" and r_ear_vis < 0.90) or (
+            results["webcam_position"] == "left" and l_ear_vis < 0.90
         ):
             results["webcam_placement"] = "ear"
 
         if min(l_hip_vis, r_hip_vis) < 0.80:
             results["webcam_placement"] = "hip"
 
-        if min(l_shoulder_vis, r_shoulder_vis) < 0.98:
+        if min(l_shoulder_vis, r_shoulder_vis) < 0.93:
             results["webcam_placement"] = "shoulder"
 
         if self.webcam_placement != results["webcam_placement"]:
