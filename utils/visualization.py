@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QProgressBar,
     QStackedWidget,
     QVBoxLayout,
-    QWidget, QPushButton, )
+    QWidget, QPushButton, QMessageBox, )
 
 from config.settings import COLORS, FONT_FACE, PANEL_OPACITY, PANEL_PADDING, TEXT_PADDING, BODY_COMPONENTS
 
@@ -322,6 +322,7 @@ def draw_status_bar(frame, analysis_results):
             thickness,
         )
 
+
 def draw_posture_indicator(frame, good_posture):
     """
     Draw a prominent indicator showing if posture is good or bad
@@ -376,7 +377,7 @@ class StatusWidget(QWidget):
         # Icon
         icon_label = QLabel()
         pixmap = QPixmap(image_path).scaled(
-            64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+            100, 100, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
         )
         icon_label.setPixmap(pixmap)
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -385,7 +386,7 @@ class StatusWidget(QWidget):
         # Label text
         text_label = QLabel(label_text)
         text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        text_label.setStyleSheet("color: black; font-weight: bold;")
+        text_label.setStyleSheet("color: white; font-weight: bold;")
         layout.addWidget(text_label)
 
         # Progress bar
@@ -421,6 +422,7 @@ class StatusWidget(QWidget):
 
         layout.addWidget(self.progress)
         self.setLayout(layout)
+
 
 class MainAppController:
     def __init__(self):
@@ -533,6 +535,7 @@ class MainScreen(QWidget):
         layout.addWidget(label)
         self.setLayout(layout)
 
+
 class WebcamWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -573,7 +576,6 @@ class WebcamWindow(QWidget):
         # Convert to Qt format and display
         self._display_frame()
 
-
     def _display_frame(self):
         """Convert the processed frame to Qt format and display it"""
         if self.current_frame is None:
@@ -605,40 +607,81 @@ class WebcamWindow(QWidget):
         if self.current_frame is not None:
             self._display_frame()
 
+
 class PostureWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Posture Status")
-        self.setStyleSheet("background-color: white;")
         self.setFixedSize(800, 480)
+        self.issues = {}
 
         # Layout setup
         main_layout = QVBoxLayout()
         main_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
 
+        # New status widget for webcam alert or results summary
+        self.status_widget = QLabel("Please fix webcam placement")
+        self.status_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_widget.setStyleSheet("""
+            font-size: 18px; 
+            font-weight: bold; 
+            color: red; 
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px;
+        """)
+        main_layout.addWidget(self.status_widget)
+
+        # Container for posture components
+        self.posture_container = QWidget()
+        posture_layout = QVBoxLayout(self.posture_container)
+        posture_layout.setContentsMargins(0, 0, 0, 0)
+
         # Torso widget
-        self.torso_widget = StatusWidget("../images/torso.png", "Torso", 0)
-        self.torso_widget.setFixedSize(150, 150)
-        main_layout.addWidget(self.torso_widget, alignment=Qt.AlignmentFlag.AlignHCenter)
+        self.torso_widget = StatusWidget("images/icons/red-torso.png", "Torso", 0)
+        self.torso_widget.setFixedSize(180, 180)
+        self.torso_widget.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.torso_widget.mousePressEvent = lambda event: self.handle_widget_click("torso")
+        posture_layout.addWidget(self.torso_widget, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         # Shoulders and neck
         lower_row = QHBoxLayout()
         lower_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.shoulders_widget = StatusWidget("../images/shoulders.png", "Shoulders", 0)
-        self.neck_widget = StatusWidget("../images/neck.png", "Neck", 0)
+        self.shoulders_widget = StatusWidget("images/icons/red-shoulders.png", "Shoulders", 0)
+        self.shoulders_widget.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.shoulders_widget.mousePressEvent = lambda event: self.handle_widget_click("shoulders")
+
+        self.neck_widget = StatusWidget("images/icons/red-neck.png", "Neck", 0)
+        self.neck_widget.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.neck_widget.mousePressEvent = lambda event: self.handle_widget_click("neck")
 
         lower_row.addWidget(self.shoulders_widget)
         lower_row.addSpacing(20)
         lower_row.addWidget(self.neck_widget)
 
-        main_layout.addLayout(lower_row)
+        posture_layout.addLayout(lower_row)
+        main_layout.addWidget(self.posture_container)
+
+        # Initially hide posture container
+        self.posture_container.hide()
+
         self.setLayout(main_layout)
 
-        # Posture detector
-
     def update_results(self, results):
-        if scores := results["scores"]:
+        if not results or not results.get("scores"):
+            self.status_widget.show()
+            # No valid results - show webcam message
+            self.posture_container.hide()
+            return
+
+        # Valid results - show posture container and update status
+        self.posture_container.show()
+        self.status_widget.hide()
+
+        # Update scores and status widgets
+        if scores := results.get("scores"):
             self.torso_widget.progress.setValue(scores.get(BODY_COMPONENTS["torso"]["score"], 0))
             self.shoulders_widget.progress.setValue(scores.get(BODY_COMPONENTS["shoulders"]["score"], 0))
             self.neck_widget.progress.setValue(scores.get(BODY_COMPONENTS["neck"]["score"], 0))
@@ -648,13 +691,20 @@ class PostureWindow(QWidget):
                                        scores.get(BODY_COMPONENTS["shoulders"]["score"], 0))
             self.update_progress_style(self.neck_widget.progress, scores.get(BODY_COMPONENTS["neck"]["score"], 0))
 
-        good_position_detected = "Good position"
-
         if issues := results.get("issues"):
-            self.torso_widget.setToolTip(issues.get("torso", good_position_detected))
-            self.shoulders_widget.setToolTip(issues.get("shoulders", good_position_detected))
-            self.neck_widget.setToolTip(issues.get("neck", good_position_detected))
+            self.issues["shoulders"] = issues.get("shoulders", None)
+            self.issues["neck"] = issues.get("neck", None)
+            self.issues["torso"] = issues.get("torso", None)
 
+    # Other methods remain unchanged
+
+    def handle_widget_click(self, component):
+        if issue := self.issues.get(component):
+            alert = QMessageBox()
+            alert.setWindowTitle(f"Informazioni {component.capitalize()}")
+            alert.setText(issue)
+            alert.setIcon(QMessageBox.Icon.Information)
+            alert.exec()
 
     def update_progress_style(self, progress_bar, score):
         if score > 60:

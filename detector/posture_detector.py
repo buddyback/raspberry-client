@@ -309,6 +309,7 @@ class PostureDetector(QObject):
                 webcam_placement_color,
                 thickness,
             )
+            self.app_controller.posture_window.update_results({})
             return frame
 
         # Extract landmarks
@@ -338,7 +339,8 @@ class PostureDetector(QObject):
 
             if last_scores[BODY_COMPONENTS["shoulders"]["score"]] < sensitivity:
                 results["issues"]["shoulders"] = "Face the screen"
-
+        else:
+            results = {}
         self.app_controller.posture_window.update_results(results)
 
         if os.getenv("DISABLE_VIBRATION", False).lower() not in ["true", "1", "yes"]:
@@ -373,7 +375,6 @@ class PostureDetector(QObject):
 
         # text_size = cv2.getTextSize(webcam_placement_text, FONT_FACE, font_scale, thickness)[0]
         cv2.putText(frame, webcam_placement_text, (10, 30), FONT_FACE, font_scale, webcam_placement_color, thickness)
-
 
         return frame
 
