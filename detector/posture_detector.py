@@ -313,6 +313,7 @@ class PostureDetector(QObject):
 
         # Extract landmarks
         landmarks = self.extract_landmarks(result.pose_landmarks, w, h)
+        draw_landmarks(frame, landmarks)
 
         sensitivity = self.settings.get("sensitivity", -1)
         # Analyze posture
@@ -329,6 +330,7 @@ class PostureDetector(QObject):
         }
 
         draw_posture_lines(frame, landmarks, colors_to_use)
+        # draw_landmarks(frame, landmarks, colors_to_use)
 
         webcam_placement = analysis_results.get("webcam_placement", "unknown")
         # todo if is sitted for long, start idle stuff
