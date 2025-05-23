@@ -18,7 +18,7 @@ class CameraManager:
             frame_height: Height of the camera frame (default: 480)
             rotation: Rotation angle in degrees (must be 0, 90, 180, or 270)
         """
-        self.camera_index = camera_index
+        self.camera_index = 4
         self.frame_width = frame_width
         self.frame_height = frame_height
         self.rotation = rotation

@@ -1,25 +1,21 @@
 """
 Visualization utilities for the posture detector.
 """
-
 import os
 
 import cv2
-from PyQt6.QtCore import QSize, Qt
-from PyQt6.QtGui import QIcon, QImage, QPixmap
+from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtGui import QPixmap, QImage, QIcon
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
-    QMessageBox,
     QProgressBar,
-    QPushButton,
     QStackedWidget,
     QVBoxLayout,
-    QWidget,
-)
+    QWidget, QPushButton, QMessageBox, )
 
-from config.settings import BODY_COMPONENTS, COLORS, FONT_FACE, PANEL_OPACITY, PANEL_PADDING, TEXT_PADDING
+from config.settings import COLORS, FONT_FACE, PANEL_OPACITY, PANEL_PADDING, TEXT_PADDING, BODY_COMPONENTS
 
 
 def get_optimal_font_scale(frame_width):
@@ -133,12 +129,13 @@ def draw_posture_lines(frame, landmarks, colors):
         "torso": {
             "points": (hip, shoulder),
             "color": colors["torso"],
-        },
+        }
         # "hips": {
         #     "points": (hip, hip_ref),
         #     "color": colors["hips"],
         # },
     }
+
 
     for component, data in line_pairs.items():
         points = data["points"]
@@ -393,10 +390,10 @@ class StatusWidget(QWidget):
 
         # Icon
         icon_label = QLabel()
-        pixmap = QPixmap(image_path).scaled(
-            100, 100, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
-        )
-        icon_label.setPixmap(pixmap)
+        # pixmap = QPixmap(image_path).scaled(
+        #     100, 100, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+        # )
+        # icon_label.setPixmap(pixmap)
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(icon_label)
 
@@ -455,39 +452,6 @@ class MainAppController:
         central_widget.setLayout(self.main_layout)
         self.window.setCentralWidget(central_widget)
 
-        # Navigation buttons at the top
-        self.button_container = QWidget()
-        self.button_bar = QHBoxLayout()
-        self.button_container.setLayout(self.button_bar)
-        self.main_layout.addWidget(self.button_container)
-
-        self.btn_posture = QPushButton()
-        self.btn_webcam = QPushButton()
-
-        # Set icons (replace with actual paths to your icon files)
-        self.btn_posture.setIcon(QIcon("images/posture.png"))  # Choose a posture icon
-        self.btn_webcam.setIcon(QIcon("images/camera.png"))  # Camera icon
-
-        # Set size and style
-        for btn in [self.btn_posture, self.btn_webcam]:
-            btn.setIconSize(QSize(32, 32))  # Set icon size
-            btn.setFixedSize(48, 48)  # Total button size
-            btn.setStyleSheet(
-                """
-                QPushButton {
-                    background-color: white;
-                    border: 1px solid #ccc;
-                    border-radius: 6px;
-                }
-                QPushButton:hover {
-                    background-color: #f0f0f0;
-                }
-            """
-            )
-
-        self.button_bar.addWidget(self.btn_posture)
-        self.button_bar.addWidget(self.btn_webcam)
-
         # Stack of views
         self.stacked_widget = QStackedWidget()
         self.main_layout.addWidget(self.stacked_widget)
@@ -500,10 +464,6 @@ class MainAppController:
         self.stacked_widget.addWidget(self.active_view)  # index 1
         self.stacked_widget.addWidget(self.webcam_view)  # index 2
 
-        # Connect buttons
-        self.btn_posture.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.active_view))
-        self.btn_webcam.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.webcam_view))
-
         # For compatibility with PostureDetector's existing references
         self.main_screen = self.window  # app_controller.main_screen will refer to the QMainWindow
         self.posture_window = (
@@ -513,21 +473,18 @@ class MainAppController:
 
     def start(self):
         """Shows the main window and sets the initial view to inactive."""
-        self.button_container.hide()  # Hide the button bar initially
         self.window.show()
         self.stacked_widget.setCurrentWidget(self.inactive_view)  # Default to inactive view
 
     def activate_session(self):
         """Switches the view to the active session (posture tracking)."""
         self.stacked_widget.setCurrentWidget(self.active_view)
-        self.button_container.show()
         print("UI: Switched to active_view with webcam and posture metrics")
 
     def end_session(self):
         """Switches the view to the inactive session (main screen)."""
         self.stacked_widget.setCurrentWidget(self.inactive_view)
         print("UI: Switched to inactive_view (MainScreen)")
-        self.button_container.hide()
 
 
 class MainScreen(QWidget):
@@ -614,7 +571,7 @@ class WebcamWindow(QWidget):
             self.image_label.width(),
             self.image_label.height(),
             Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
+            Qt.TransformationMode.SmoothTransformation
         )
 
         # Display the image
@@ -634,15 +591,29 @@ class PostureWindow(QWidget):
         self.setFixedSize(800, 480)
         self.issues = {}
 
-        # Layout setup
-        main_layout = QVBoxLayout()
-        main_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+        # Main layout setup - use HBoxLayout for side-by-side arrangement
+        main_layout = QHBoxLayout()
+        self.setLayout(main_layout)
 
-        # New status widget for webcam alert or results summary
+        # Left side - Large image
+        self.image_label = QLabel()
+        pixmap = QPixmap("images/new_icons/RRR.png")  # Replace with your image path
+        self.image_label.setPixmap(pixmap)
+        self.image_label.setScaledContents(True)
+        self.image_label.setFixedWidth(200)  # Adjust width as needed
+        self.image_label.setFixedHeight(400)
+        main_layout.addWidget(self.image_label)
+
+        # Right side - Status widgets in vertical layout
+        right_side = QWidget()
+        right_layout = QVBoxLayout(right_side)
+        right_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        main_layout.addWidget(right_side)
+
+        # Status widget for alerts
         self.status_widget = QLabel("Please fix webcam placement")
         self.status_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status_widget.setStyleSheet(
-            """
+        self.status_widget.setStyleSheet("""
             font-size: 18px; 
             font-weight: bold; 
             color: red; 
@@ -650,45 +621,37 @@ class PostureWindow(QWidget):
             padding: 10px;
             border-radius: 5px;
             margin: 10px;
-        """
-        )
-        main_layout.addWidget(self.status_widget)
+        """)
+        right_layout.addWidget(self.status_widget)
 
         # Container for posture components
         self.posture_container = QWidget()
         posture_layout = QVBoxLayout(self.posture_container)
+        posture_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         posture_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.addWidget(self.posture_container)
 
-        # Torso widget
+        # Add the three status widgets vertically
         self.torso_widget = StatusWidget("images/icons/red-torso.png", "Torso", 0)
-        self.torso_widget.setFixedSize(180, 180)
         self.torso_widget.setCursor(Qt.CursorShape.PointingHandCursor)
         self.torso_widget.mousePressEvent = lambda event: self.handle_widget_click("torso")
-        posture_layout.addWidget(self.torso_widget, alignment=Qt.AlignmentFlag.AlignHCenter)
-
-        # Shoulders and neck
-        lower_row = QHBoxLayout()
-        lower_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        posture_layout.addWidget(self.torso_widget)
 
         self.shoulders_widget = StatusWidget("images/icons/red-shoulders.png", "Shoulders", 0)
         self.shoulders_widget.setCursor(Qt.CursorShape.PointingHandCursor)
         self.shoulders_widget.mousePressEvent = lambda event: self.handle_widget_click("shoulders")
+        posture_layout.addWidget(self.shoulders_widget)
 
         self.neck_widget = StatusWidget("images/icons/red-neck.png", "Neck", 0)
         self.neck_widget.setCursor(Qt.CursorShape.PointingHandCursor)
         self.neck_widget.mousePressEvent = lambda event: self.handle_widget_click("neck")
+        posture_layout.addWidget(self.neck_widget)
 
-        lower_row.addWidget(self.shoulders_widget)
-        lower_row.addSpacing(20)
-        lower_row.addWidget(self.neck_widget)
-
-        posture_layout.addLayout(lower_row)
-        main_layout.addWidget(self.posture_container)
+        # Add a stretch at the bottom to push widgets to the top
+        posture_layout.addStretch()
 
         # Initially hide posture container
         self.posture_container.hide()
-
-        self.setLayout(main_layout)
 
     def update_results(self, results):
         if not results or not results.get("scores"):
@@ -708,17 +671,14 @@ class PostureWindow(QWidget):
             self.neck_widget.progress.setValue(scores.get(BODY_COMPONENTS["neck"]["score"], 0))
 
             self.update_progress_style(self.torso_widget.progress, scores.get(BODY_COMPONENTS["torso"]["score"], 0))
-            self.update_progress_style(
-                self.shoulders_widget.progress, scores.get(BODY_COMPONENTS["shoulders"]["score"], 0)
-            )
+            self.update_progress_style(self.shoulders_widget.progress,
+                                      scores.get(BODY_COMPONENTS["shoulders"]["score"], 0))
             self.update_progress_style(self.neck_widget.progress, scores.get(BODY_COMPONENTS["neck"]["score"], 0))
 
         if issues := results.get("issues"):
             self.issues["shoulders"] = issues.get("shoulders", None)
             self.issues["neck"] = issues.get("neck", None)
             self.issues["torso"] = issues.get("torso", None)
-
-    # Other methods remain unchanged
 
     def handle_widget_click(self, component):
         if issue := self.issues.get(component):
@@ -750,3 +710,4 @@ class PostureWindow(QWidget):
             }}
         """
         )
+
