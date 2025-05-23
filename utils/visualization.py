@@ -595,20 +595,20 @@ class PostureWindow(QWidget):
         main_layout = QHBoxLayout()
         self.setLayout(main_layout)
 
-        # Left side - Large image
+        # Left side - Status widgets and image in vertical layout
+        left_panel = QWidget()
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        main_layout.addWidget(left_panel)
+
+        # Add the image
         self.image_label = QLabel()
-        pixmap = QPixmap("images/new_icons/RRR.png")  # Replace with your image path
+        pixmap = QPixmap("images/new_icons/RRR.png")
         self.image_label.setPixmap(pixmap)
         self.image_label.setScaledContents(True)
-        self.image_label.setFixedWidth(200)  # Adjust width as needed
-        self.image_label.setFixedHeight(400)
-        main_layout.addWidget(self.image_label)
-
-        # Right side - Status widgets in vertical layout
-        right_side = QWidget()
-        right_layout = QVBoxLayout(right_side)
-        right_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        main_layout.addWidget(right_side)
+        self.image_label.setFixedWidth(200)
+        self.image_label.setFixedHeight(250)
+        left_layout.addWidget(self.image_label)
 
         # Status widget for alerts
         self.status_widget = QLabel("Please fix webcam placement")
@@ -622,14 +622,14 @@ class PostureWindow(QWidget):
             border-radius: 5px;
             margin: 10px;
         """)
-        right_layout.addWidget(self.status_widget)
+        left_layout.addWidget(self.status_widget)
 
         # Container for posture components
         self.posture_container = QWidget()
         posture_layout = QVBoxLayout(self.posture_container)
         posture_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         posture_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.addWidget(self.posture_container)
+        left_layout.addWidget(self.posture_container)
 
         # Add the three status widgets vertically
         self.torso_widget = StatusWidget("images/icons/red-torso.png", "Torso", 0)
@@ -647,11 +647,130 @@ class PostureWindow(QWidget):
         self.neck_widget.mousePressEvent = lambda event: self.handle_widget_click("neck")
         posture_layout.addWidget(self.neck_widget)
 
-        # Add a stretch at the bottom to push widgets to the top
-        posture_layout.addStretch()
+        # Right side - Webcam feed with 2D skeleton
+        self.webcam_panel = QWidget()
+        webcam_layout = QVBoxLayout(self.webcam_panel)
+        main_layout.addWidget(self.webcam_panel, 2)  # Give more space to the webcam panel (2:1 ratio)
+
+        # Create label to display the webcam feed
+        self.webcam_label = QLabel()
+        self.webcam_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.webcam_label.setStyleSheet("background-color: black;")
+        webcam_layout.addWidget(self.webcam_label)
+
+        # Current frame and analysis data
+        self.current_frame = None
+        self.landmarks = {}
+        self.analysis_results = {}
+        self.neck_angle = 0
+        self.torso_angle = 0
+        self.good_posture = False
 
         # Initially hide posture container
         self.posture_container.hide()
+
+    def update_frame(self, frame, landmarks=None, analysis_results=None):
+        """
+        Update the webcam panel with a new frame and visualization data
+
+        Args:
+            frame: The video frame (numpy array)
+            landmarks: Dictionary of detected landmarks
+            analysis_results: Dictionary of posture analysis results
+        """
+        if frame is None:
+            return
+
+        # Store data for visualization
+        self.current_frame = frame.copy()
+
+        if landmarks:
+            self.landmarks = landmarks
+
+        if analysis_results:
+            self.analysis_results = analysis_results
+
+        # Draw posture visualization on the frame
+        if self.landmarks:
+            # Determine component colors based on scores
+            component_colors = {}
+            if "scores" in self.analysis_results:
+                scores = self.analysis_results["scores"]
+                for component in ["neck", "shoulders", "torso"]:
+                    score = scores.get(BODY_COMPONENTS[component]["score"], 0)
+                    if score > 60:
+                        component_colors[component] = COLORS["green"]
+                    elif score > 30:
+                        component_colors[component] = COLORS["yellow"]
+                    else:
+                        component_colors[component] = COLORS["red"]
+            else:
+                # Default colors if no scores
+                component_colors = {
+                    "neck": COLORS["red"],
+                    "shoulders": COLORS["red"],
+                    "torso": COLORS["red"]
+                }
+
+            # Draw landmarks
+            draw_landmarks(self.current_frame, self.landmarks)
+
+            # Draw posture lines with appropriate colors
+            draw_posture_lines(self.current_frame, self.landmarks, component_colors)
+
+            # Draw angles if available in the results
+            if "neck_angle" in self.analysis_results and "torso_angle" in self.analysis_results:
+                draw_angle_text(
+                    self.current_frame,
+                    self.landmarks,
+                    self.analysis_results["neck_angle"],
+                    self.analysis_results["torso_angle"],
+                    COLORS["white"]
+                )
+
+            # Draw posture guidance
+            if "issues" in self.analysis_results:
+                draw_posture_guidance(self.current_frame, self.analysis_results)
+
+            # Draw status indicators
+            if "is_good_posture" in self.analysis_results:
+                draw_posture_indicator(self.current_frame, self.analysis_results["is_good_posture"])
+
+            draw_status_bar(self.current_frame, self.analysis_results)
+
+        # Convert to Qt format and display
+        self._display_frame()
+
+    def _display_frame(self):
+        """Convert the processed frame to Qt format and display it"""
+        if self.current_frame is None:
+            return
+
+        # Convert the frame to RGB (from BGR)
+        rgb_frame = cv2.cvtColor(self.current_frame, cv2.COLOR_BGR2RGB)
+
+        # Create QImage from the frame
+        h, w, ch = rgb_frame.shape
+        bytes_per_line = ch * w
+        qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+
+        # Scale the image to fit the label while maintaining aspect ratio
+        pixmap = QPixmap.fromImage(qt_image)
+        pixmap = pixmap.scaled(
+            self.webcam_label.width(),
+            self.webcam_label.height(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+
+        # Display the image
+        self.webcam_label.setPixmap(pixmap)
+
+    def resizeEvent(self, event):
+        """Handle resize events to update the displayed frame"""
+        super().resizeEvent(event)
+        if self.current_frame is not None:
+            self._display_frame()
 
     def update_results(self, results):
         if not results or not results.get("scores"):
@@ -670,6 +789,9 @@ class PostureWindow(QWidget):
             self.shoulders_widget.progress.setValue(scores.get(BODY_COMPONENTS["shoulders"]["score"], 0))
             self.neck_widget.progress.setValue(scores.get(BODY_COMPONENTS["neck"]["score"], 0))
 
+            # Update the icon based on scores
+            self.update_icon_image(scores)
+
             self.update_progress_style(self.torso_widget.progress, scores.get(BODY_COMPONENTS["torso"]["score"], 0))
             self.update_progress_style(self.shoulders_widget.progress,
                                       scores.get(BODY_COMPONENTS["shoulders"]["score"], 0))
@@ -679,6 +801,29 @@ class PostureWindow(QWidget):
             self.issues["shoulders"] = issues.get("shoulders", None)
             self.issues["neck"] = issues.get("neck", None)
             self.issues["torso"] = issues.get("torso", None)
+
+        # Update the frame with the new results if we have a frame
+        if self.current_frame is not None:
+            self.update_frame(self.current_frame, landmarks=results.get("landmarks", {}), analysis_results=results)
+
+    def update_icon_image(self, scores):
+        """Update the icon image based on the posture scores"""
+        # Determine status for each component
+        neck_status = "G" if scores.get(BODY_COMPONENTS["neck"]["score"], 0) > 60 else "Y" if scores.get(BODY_COMPONENTS["neck"]["score"], 0) > 30 else "R"
+        shoulders_status = "G" if scores.get(BODY_COMPONENTS["shoulders"]["score"], 0) > 60 else "Y" if scores.get(BODY_COMPONENTS["shoulders"]["score"], 0) > 30 else "R"
+        torso_status = "G" if scores.get(BODY_COMPONENTS["torso"]["score"], 0) > 60 else "Y" if scores.get(BODY_COMPONENTS["torso"]["score"], 0) > 30 else "R"
+
+        # Construct icon filename from component statuses
+        icon_filename = f"{neck_status}{shoulders_status}{torso_status}.png"
+        icon_path = f"images/new_icons/{icon_filename}"
+
+        try:
+            # Update the image
+            pixmap = QPixmap(icon_path)
+            self.image_label.setPixmap(pixmap)
+        except:
+            # Fallback if image not found
+            print(f"Warning: Could not load icon image {icon_path}")
 
     def handle_widget_click(self, component):
         if issue := self.issues.get(component):
