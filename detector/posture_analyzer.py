@@ -149,7 +149,7 @@ class PostureAnalyzer:
         if max(l_hip_vis, r_hip_vis) < 0.9:
             results["webcam_placement"] = "hip"
 
-        if max(l_shoulder_vis, r_shoulder_vis) < 0.95:
+        if min(l_shoulder_vis, r_shoulder_vis) < 0.93:
             results["webcam_placement"] = "shoulder"
 
         if self.webcam_placement != results["webcam_placement"]:
