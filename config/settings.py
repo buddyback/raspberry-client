@@ -5,7 +5,6 @@ Configuration settings for the posture detector application.
 # Camera settings
 DEFAULT_CAMERA_WIDTH = 640
 DEFAULT_CAMERA_HEIGHT = 480
-CAMERA_FPS = 30
 
 # Score thresholds
 NECK_SCORE_MAP = {0: 100, 25: 75, 40: 20, 50: 0}

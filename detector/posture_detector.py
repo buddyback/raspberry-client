@@ -15,7 +15,6 @@ from PyQt6.QtWidgets import QApplication
 
 from config.settings import (
     BODY_COMPONENTS,
-    CAMERA_FPS,
     COLORS,
     FONT_FACE,
     SEND_INTERVAL,
