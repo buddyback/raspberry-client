@@ -14,17 +14,20 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QApplication
 
 from config.settings import (
+    ALERT_SLIDING_WINDOW_DURATION,
     BODY_COMPONENTS,
     COLORS,
     FONT_FACE,
     SEND_INTERVAL,
     SLIDING_WINDOW_DURATION,
-    WARNING_COOLDOWN, ALERT_SLIDING_WINDOW_DURATION,
+    WARNING_COOLDOWN,
 )
 from detector.posture_analyzer import PostureAnalyzer
 from utils.pigpio import PigpioClient
 from utils.visualization import (
-    get_optimal_font_scale, draw_landmarks, draw_posture_lines,
+    draw_landmarks,
+    draw_posture_lines,
+    get_optimal_font_scale,
 )
 
 
@@ -32,7 +35,7 @@ class PostureDetector(QObject):
     """Main class for posture detection"""
 
     def __init__(
-            self, camera_manager, show_guidance=True, model_complexity=2, websocket_client=None, app_controller=None
+        self, camera_manager, show_guidance=True, model_complexity=2, websocket_client=None, app_controller=None
     ):
         """
         Initialize posture detector
@@ -323,8 +326,9 @@ class PostureDetector(QObject):
 
         last_scores = self._get_average_score(SLIDING_WINDOW_DURATION)
         colors_to_use = {
-            component: COLORS["red"] if last_scores[BODY_COMPONENTS[component]["score"]] < sensitivity else COLORS[
-                "green"]
+            component: (
+                COLORS["red"] if last_scores[BODY_COMPONENTS[component]["score"]] < sensitivity else COLORS["green"]
+            )
             for component in ["neck", "torso", "shoulders"]
         }
 
@@ -334,10 +338,7 @@ class PostureDetector(QObject):
         webcam_placement = analysis_results.get("webcam_placement", "unknown")
         # todo if is sitted for long, start idle stuff
 
-        results = {
-            "scores": last_scores,
-            "issues": dict()
-        }
+        results = {"scores": last_scores, "issues": dict()}
 
         if webcam_placement == "good":
             if last_scores[BODY_COMPONENTS["neck"]["score"]] < sensitivity:
@@ -362,14 +363,13 @@ class PostureDetector(QObject):
                         print("your average is very bad bro:", component, "is", score)
                         now = datetime.now()
                         if self.last_alert_time is None or now - self.last_alert_time > timedelta(
-                                seconds=WARNING_COOLDOWN
+                            seconds=WARNING_COOLDOWN
                         ):
 
                             await self.gpio_client.long_alert()
                             # asyncio.create_task(self.gpio_client.long_alert()) # todo decide if we want to use this
                         self.last_alert_time = now
                         # todo alert to display
-
 
         # Update landmarks with head tilted back status for visualization
         landmarks["is_head_tilted_back"] = analysis_results["is_head_tilted_back"]
