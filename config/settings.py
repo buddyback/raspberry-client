@@ -15,7 +15,7 @@ TORSO_SCORE_MAP = {0: 100, 15: 75, 30: 10, 40: 0}
 SHOULDERS_SCORE_MAP = {0: 100, 100: 50, 200: 0}
 
 # Warning settings
-WARNING_COOLDOWN = 60  # seconds
+WARNING_COOLDOWN = 120  # seconds
 
 # Colors in BGR format
 COLORS = {
