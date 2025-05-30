@@ -21,7 +21,7 @@ def is_looking_at_camera(landmarks):
     visibility = min(left_eye.visibility, right_eye.visibility)
     print("visibility", visibility)
 
-    return visibility > 0.999
+    return visibility > 0.993 # todo make it a parameter
 
 
 class PostureAnalyzer:
