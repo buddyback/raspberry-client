@@ -358,9 +358,7 @@ class PostureDetector(QObject):
             user_looking = is_looking_at_camera(result.pose_landmarks.landmark)
             print(f"User looking at camera: {user_looking}")
             if user_looking:
-                turn_on_screen()
-            else:
-                turn_off_screen()
+                turn_on_screen() # wake up the screen if user is looking at it
 
         if os.getenv("DISABLE_VIBRATION", False).lower() not in ["true", "1", "yes"]:
             # If the last posture is bad then...
@@ -544,6 +542,13 @@ class PostureDetector(QObject):
                             self.app_controller.activate_session()
                         else:
                             self.app_controller.end_session()
+
+                    # Turn on the screen if session started
+                    if os.getenv("RASPI_DISPLAY", False).lower() in ["true", "1", "yes"]:
+                        if session_active_from_settings:
+                            turn_on_screen()
+                        else:
+                            turn_off_screen()
 
                     # Update tracking variable
                     current_session_active = session_active_from_settings
