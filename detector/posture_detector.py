@@ -355,7 +355,8 @@ class PostureDetector(QObject):
         self.app_controller.posture_window.update_results(results)
 
         if os.getenv("RASPI_DISPLAY", False).lower() in ["true", "1", "yes"]:
-            user_looking = is_looking_at_camera(result.pose_landmarks)
+            user_looking = is_looking_at_camera(result.pose_landmarks.landmark)
+            print(f"User looking at camera: {user_looking}")
             if user_looking:
                 turn_on_screen()
             else:
