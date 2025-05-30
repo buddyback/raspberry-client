@@ -202,7 +202,7 @@ class PostureAnalyzer:
         # results["reclination"] = self.calculate_angle(
 
         # Calculate relative angle between neck and torso
-        results["relative_neck_angle"] = abs(results["neck_angle"] - results["torso_angle"])
+        results["relative_neck_angle"] = min(abs(results["neck_angle"] - results["torso_angle"]), results["neck_angle"])
 
         # print("-------------------")
         # print(results["torso_angle"])
