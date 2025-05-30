@@ -11,6 +11,29 @@ from config.settings import (
 )
 
 
+def is_looking_at_camera(landmarks):
+    """
+    Determine if user is looking at camera based on facial landmarks
+    """
+    # Get nose tip (landmark index 0)
+    nose = landmarks[0]
+
+    # Get left and right eye landmarks (indices 2 and 5)
+    left_eye = landmarks[2]
+    right_eye = landmarks[5]
+
+    # Calculate eye center
+    eye_center_x = (left_eye.x + right_eye.x) / 2
+    eye_center_y = (left_eye.y + right_eye.y) / 2
+
+    # Calculate horizontal offset between nose and eye center
+    horizontal_offset = abs(nose.x - eye_center_x)
+
+    # If offset is small, user is likely looking at camera
+    threshold = 0.02  # Adjust based on your needs
+    return horizontal_offset < threshold
+
+
 class PostureAnalyzer:
     """Analyzes posture based on landmark positions"""
 
@@ -232,3 +255,5 @@ class PostureAnalyzer:
         )
 
         return results
+
+

@@ -22,8 +22,9 @@ from config.settings import (
     SLIDING_WINDOW_DURATION,
     WARNING_COOLDOWN,
 )
-from detector.posture_analyzer import PostureAnalyzer
+from detector.posture_analyzer import PostureAnalyzer, is_looking_at_camera
 from utils.pigpio import PigpioClient
+from utils.raspi_screen import turn_on_screen, turn_off_screen
 from utils.visualization import (
     draw_landmarks,
     draw_posture_lines,
@@ -352,6 +353,13 @@ class PostureDetector(QObject):
         else:
             results = {}
         self.app_controller.posture_window.update_results(results)
+
+        if os.getenv("RASPI_DISPLAY", False).lower() in ["true", "1", "yes"]:
+            user_looking = is_looking_at_camera(result.pose_landmarks)
+            if user_looking:
+                turn_on_screen()
+            else:
+                turn_off_screen()
 
         if os.getenv("DISABLE_VIBRATION", False).lower() not in ["true", "1", "yes"]:
             # If the last posture is bad then...
