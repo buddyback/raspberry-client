@@ -64,6 +64,8 @@ async def main():
     try:
         # Initialize Qt application with qasync integration
         app = QAsyncApplication(sys.argv)
+        # set background color to black
+        app.setStyleSheet("QWidget { background-color: #252525; }")
         loop = QEventLoop(app)
         asyncio.set_event_loop(loop)
 
