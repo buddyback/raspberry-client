@@ -4,7 +4,7 @@ import sys
 import time
 
 # Client heartbeat interval (in seconds)
-HEARTBEAT_INTERVAL = 1
+HEARTBEAT_INTERVAL = 30
 
 
 # TODO: Move the websocket logic to posture detector and use this only for sending data
