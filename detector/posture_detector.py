@@ -84,6 +84,10 @@ class PostureDetector(QObject):
         self.websocket_client = websocket_client
         self.settings = {}
 
+        # Store last frame data for UI updates
+        self._last_landmarks = {}
+        self._last_analysis_results = {}
+
         if os.getenv("DISABLE_VIBRATION", False).lower() not in ["true", "1", "yes"]:
             self.gpio_client = PigpioClient()
 
@@ -381,6 +385,10 @@ class PostureDetector(QObject):
         # Update landmarks with head tilted back status for visualization
         landmarks["is_head_tilted_back"] = analysis_results["is_head_tilted_back"]
 
+        # Store landmarks and analysis results for UI updates
+        self._last_landmarks = landmarks
+        self._last_analysis_results = analysis_results
+
         # Add main angle text at top
 
         if webcam_placement != "good":
@@ -573,10 +581,19 @@ class PostureDetector(QObject):
                 # Process the frame
                 processed_frame = await self.process_frame(frame)
 
-                # Display the processed frame in PyQt interface only
+                # Display the processed frame in PyQt interface
+                # Update both the webcam view and the posture window (active view)
                 self.app_controller.webcam_view.update_frame(
                     frame=processed_frame,
                 )
+                
+                # Also update the posture window's webcam feed when session is active
+                if current_session_active:
+                    self.app_controller.posture_window.update_frame(
+                        frame=processed_frame,
+                        landmarks=getattr(self, '_last_landmarks', {}),
+                        analysis_results=getattr(self, '_last_analysis_results', {})
+                    )
 
                 # Process Qt events to keep the UI responsive
                 QApplication.processEvents()
