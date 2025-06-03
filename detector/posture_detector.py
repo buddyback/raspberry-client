@@ -470,8 +470,8 @@ class PostureDetector(QObject):
                 print(f"Error updating settings: {e}")
                 await asyncio.sleep(1)  # Wait before retrying
 
-            # throttle your polling rate
-            # await asyncio.sleep(0.5)
+            # throttle your polling rate - THIS WAS COMMENTED OUT!
+            await asyncio.sleep(0.5)
 
     async def run(self):
         """Main function to run the posture detection"""
