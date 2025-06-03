@@ -488,7 +488,7 @@ class PostureDetector(QObject):
             )
 
             # Start a background task for user commands
-            asyncio.create_task(self.websocket_client.process_user_commands())
+            # asyncio.create_task(self.websocket_client.process_user_commands())
 
             # Start a background task for sending heartbeats
             asyncio.create_task(self.websocket_client.send_heartbeats())
