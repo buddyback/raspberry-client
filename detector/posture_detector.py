@@ -581,7 +581,7 @@ class PostureDetector(QObject):
                 QApplication.processEvents()
 
                 # Give other tasks a chance to run
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.01)
         except Exception as e:
             print(f"Error occurred: {str(e)}")
             raise e
