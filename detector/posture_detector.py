@@ -24,7 +24,7 @@ from config.settings import (
 )
 from detector.posture_analyzer import PostureAnalyzer, is_looking_at_camera
 from utils.pigpio import PigpioClient
-from utils.raspi_screen import turn_on_screen, turn_off_screen
+from utils.raspi_screen import turn_on_screen, set_screen_cooldown
 from utils.visualization import (
     draw_landmarks,
     draw_posture_lines,
@@ -545,9 +545,10 @@ class PostureDetector(QObject):
                     # Turn on the screen if session started
                     if os.getenv("RASPI_DISPLAY", False).lower() in ["true", "1", "yes"]:
                         if session_active_from_settings:
+                            set_screen_cooldown(10800) # 3 hours cooldown
                             turn_on_screen()
                         else:
-                            turn_off_screen()
+                            set_screen_cooldown(5)
 
                     # Update tracking variable
                     current_session_active = session_active_from_settings

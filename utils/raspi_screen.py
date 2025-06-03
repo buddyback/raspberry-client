@@ -19,4 +19,4 @@ def set_screen_cooldown(seconds):
 
     :param seconds: Number of seconds before the screen turns off.
     """
-    os.system(f"xset dpms {seconds}")
+    os.system(f"xset dpms {seconds} {seconds} {seconds}")
