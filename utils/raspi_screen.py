@@ -7,11 +7,13 @@ def turn_on_screen():
     """
     os.system("xset dpms force on")
 
+
 def turn_off_screen():
     """
     Turns off the Raspberry Pi screen with xset dpms force off command.
     """
     os.system("xset dpms force off")
+
 
 def set_screen_cooldown(seconds):
     """

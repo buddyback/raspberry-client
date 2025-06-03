@@ -1,21 +1,25 @@
 """
 Visualization utilities for the posture detector.
 """
+
 import os
 
 import cv2
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QPixmap, QImage, QIcon
+from PyQt6.QtCore import QSize, Qt
+from PyQt6.QtGui import QIcon, QImage, QPixmap
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QProgressBar,
+    QPushButton,
     QStackedWidget,
     QVBoxLayout,
-    QWidget, QPushButton, QMessageBox, )
+    QWidget,
+)
 
-from config.settings import COLORS, FONT_FACE, PANEL_OPACITY, PANEL_PADDING, TEXT_PADDING, BODY_COMPONENTS
+from config.settings import BODY_COMPONENTS, COLORS, FONT_FACE, PANEL_OPACITY, PANEL_PADDING, TEXT_PADDING
 
 
 def get_optimal_font_scale(frame_width):
@@ -129,13 +133,12 @@ def draw_posture_lines(frame, landmarks, colors):
         "torso": {
             "points": (hip, shoulder),
             "color": colors["torso"],
-        }
+        },
         # "hips": {
         #     "points": (hip, hip_ref),
         #     "color": colors["hips"],
         # },
     }
-
 
     for component, data in line_pairs.items():
         points = data["points"]
@@ -571,7 +574,7 @@ class WebcamWindow(QWidget):
             self.image_label.width(),
             self.image_label.height(),
             Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation
+            Qt.TransformationMode.SmoothTransformation,
         )
 
         # Display the image
@@ -613,7 +616,8 @@ class PostureWindow(QWidget):
         # Status widget for alerts
         self.status_widget = QLabel("Please fix webcam placement")
         self.status_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status_widget.setStyleSheet("""
+        self.status_widget.setStyleSheet(
+            """
             font-size: 18px; 
             font-weight: bold; 
             color: red; 
@@ -621,7 +625,8 @@ class PostureWindow(QWidget):
             padding: 10px;
             border-radius: 5px;
             margin: 10px;
-        """)
+        """
+        )
         left_layout.addWidget(self.status_widget)
 
         # Container for posture components
@@ -706,11 +711,7 @@ class PostureWindow(QWidget):
                         component_colors[component] = COLORS["red"]
             else:
                 # Default colors if no scores
-                component_colors = {
-                    "neck": COLORS["red"],
-                    "shoulders": COLORS["red"],
-                    "torso": COLORS["red"]
-                }
+                component_colors = {"neck": COLORS["red"], "shoulders": COLORS["red"], "torso": COLORS["red"]}
 
             # Draw landmarks
             draw_landmarks(self.current_frame, self.landmarks)
@@ -725,7 +726,7 @@ class PostureWindow(QWidget):
                     self.landmarks,
                     self.analysis_results["neck_angle"],
                     self.analysis_results["torso_angle"],
-                    COLORS["white"]
+                    COLORS["white"],
                 )
 
             # Draw posture guidance
@@ -760,7 +761,7 @@ class PostureWindow(QWidget):
             self.webcam_label.width(),
             self.webcam_label.height(),
             Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation
+            Qt.TransformationMode.SmoothTransformation,
         )
 
         # Display the image
@@ -793,8 +794,9 @@ class PostureWindow(QWidget):
             self.update_icon_image(scores)
 
             self.update_progress_style(self.torso_widget.progress, scores.get(BODY_COMPONENTS["torso"]["score"], 0))
-            self.update_progress_style(self.shoulders_widget.progress,
-                                      scores.get(BODY_COMPONENTS["shoulders"]["score"], 0))
+            self.update_progress_style(
+                self.shoulders_widget.progress, scores.get(BODY_COMPONENTS["shoulders"]["score"], 0)
+            )
             self.update_progress_style(self.neck_widget.progress, scores.get(BODY_COMPONENTS["neck"]["score"], 0))
 
         if issues := results.get("issues"):
@@ -809,9 +811,21 @@ class PostureWindow(QWidget):
     def update_icon_image(self, scores):
         """Update the icon image based on the posture scores"""
         # Determine status for each component
-        neck_status = "G" if scores.get(BODY_COMPONENTS["neck"]["score"], 0) > 60 else "Y" if scores.get(BODY_COMPONENTS["neck"]["score"], 0) > 30 else "R"
-        shoulders_status = "G" if scores.get(BODY_COMPONENTS["shoulders"]["score"], 0) > 60 else "Y" if scores.get(BODY_COMPONENTS["shoulders"]["score"], 0) > 30 else "R"
-        torso_status = "G" if scores.get(BODY_COMPONENTS["torso"]["score"], 0) > 60 else "Y" if scores.get(BODY_COMPONENTS["torso"]["score"], 0) > 30 else "R"
+        neck_status = (
+            "G"
+            if scores.get(BODY_COMPONENTS["neck"]["score"], 0) > 60
+            else "Y" if scores.get(BODY_COMPONENTS["neck"]["score"], 0) > 30 else "R"
+        )
+        shoulders_status = (
+            "G"
+            if scores.get(BODY_COMPONENTS["shoulders"]["score"], 0) > 60
+            else "Y" if scores.get(BODY_COMPONENTS["shoulders"]["score"], 0) > 30 else "R"
+        )
+        torso_status = (
+            "G"
+            if scores.get(BODY_COMPONENTS["torso"]["score"], 0) > 60
+            else "Y" if scores.get(BODY_COMPONENTS["torso"]["score"], 0) > 30 else "R"
+        )
 
         # Construct icon filename from component statuses
         icon_filename = f"{neck_status}{shoulders_status}{torso_status}.png"
@@ -855,4 +869,3 @@ class PostureWindow(QWidget):
             }}
         """
         )
-
