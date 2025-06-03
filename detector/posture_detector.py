@@ -560,7 +560,7 @@ class PostureDetector(QObject):
                 if not current_session_active:
                     # Process events while waiting to ensure UI remains responsive
                     QApplication.processEvents()
-                    await asyncio.sleep(0.5)  # Check settings periodically
+                    await asyncio.sleep(2)  # Check settings periodically
                     continue
 
                 # Read frame from webcam
