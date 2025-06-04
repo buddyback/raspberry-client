@@ -315,7 +315,7 @@ class PostureDetector(QObject):
                 webcam_placement_color,
                 thickness,
             )
-            self.app_controller.posture_window.update_results({})
+            self.app_controller.posture_window.update_results({}, None)
             return frame
 
         # Extract landmarks
@@ -337,7 +337,7 @@ class PostureDetector(QObject):
             for component in ["neck", "torso", "shoulders"]
         }
 
-        draw_posture_lines(frame, landmarks, colors_to_use)
+        #draw_posture_lines(frame, landmarks, colors_to_use)
         # draw_landmarks(frame, landmarks, colors_to_use)
 
         webcam_placement = analysis_results.get("webcam_placement", "unknown")
@@ -356,7 +356,8 @@ class PostureDetector(QObject):
                 results["issues"]["shoulders"] = "Face the screen"
         else:
             results = {}
-        self.app_controller.posture_window.update_results(results)
+        colors = self.get_colors(SLIDING_WINDOW_DURATION)
+        self.app_controller.posture_window.update_results(results, colors)
 
         if os.getenv("RASPI_DISPLAY", False).lower() in ["true", "1", "yes"]:
             user_looking = is_looking_at_camera(result.pose_landmarks.landmark)
@@ -401,6 +402,23 @@ class PostureDetector(QObject):
         cv2.putText(frame, webcam_placement_text, (10, 30), FONT_FACE, font_scale, webcam_placement_color, thickness)
 
         return frame
+
+    def get_colors(self, sliding_window_size):
+        """
+        Get the colors for the posture components based on the sliding window size
+        """
+        scores = self._get_average_score(sliding_window_size)
+        components = {}
+        for component, attributes in BODY_COMPONENTS.items():
+            score = scores.get(attributes["score"])
+            if self.settings.get("sensitivity", 75) - score >= 10:
+                components[component] = COLORS["red"]
+            elif self.settings.get("sensitivity", 75) - score >= 0:
+                components[component] = COLORS["yellow"]
+            else:
+                components[component] = COLORS["green"]
+        return components
+
 
     def handle_keyboard_input(self, key):
         """
@@ -583,16 +601,18 @@ class PostureDetector(QObject):
 
                 # Display the processed frame in PyQt interface
                 # Update both the webcam view and the posture window (active view)
-                self.app_controller.webcam_view.update_frame(
-                    frame=processed_frame,
-                )
-                
+                # todo rimossa perché apparentemente non fa un cazzo di niente
+                # self.app_controller.webcam_view.update_frame(
+                #     frame=processed_frame,
+                # )
+
                 # Also update the posture window's webcam feed when session is active
                 if current_session_active:
                     self.app_controller.posture_window.update_frame(
                         frame=processed_frame,
                         landmarks=getattr(self, '_last_landmarks', {}),
-                        analysis_results=getattr(self, '_last_analysis_results', {})
+                        analysis_results=getattr(self, '_last_analysis_results', {}),
+                        colors=self.get_colors(1),
                     )
 
                 # Process Qt events to keep the UI responsive

@@ -531,29 +531,33 @@ class WebcamWindow(QWidget):
 
         # Current frame and analysis results
         self.current_frame = None
-        self.analysis_results = {}
+
+        # todo non serve a niente
+        # self.analysis_results = {}
+
         self.landmarks = {}
         self.neck_angle = 0
         self.torso_angle = 0
         self.good_posture = False
 
-    def update_frame(self, frame):
-        """
-        Update the widget with a new frame and visualization data
-
-        Args:
-            frame: The video frame (numpy array)
-            landmarks: Dictionary of detected landmarks
-            analysis_results: Dictionary of posture analysis results
-        """
-        if frame is None:
-            return
-
-        # Store data for visualization
-        self.current_frame = frame.copy()
-
-        # Convert to Qt format and display
-        self._display_frame()
+    # todo non serve a niente
+    # def update_frame(self, frame):
+    #     """
+    #     Update the widget with a new frame and visualization data
+    #
+    #     Args:
+    #         frame: The video frame (numpy array)
+    #         landmarks: Dictionary of detected landmarks
+    #         analysis_results: Dictionary of posture analysis results
+    #     """
+    #     if frame is None:
+    #         return
+    #
+    #     # Store data for visualization
+    #     self.current_frame = frame.copy()
+    #
+    #     # Convert to Qt format and display
+    #     self._display_frame()
 
     def _display_frame(self):
         """Convert the processed frame to Qt format and display it"""
@@ -666,7 +670,10 @@ class PostureWindow(QWidget):
         # Current frame and analysis data
         self.current_frame = None
         self.landmarks = {}
-        self.analysis_results = {}
+
+        # todo non serve a niente
+        # self.analysis_results = {}
+
         self.neck_angle = 0
         self.torso_angle = 0
         self.good_posture = False
@@ -674,7 +681,7 @@ class PostureWindow(QWidget):
         # Initially hide posture container
         self.posture_container.hide()
 
-    def update_frame(self, frame, landmarks=None, analysis_results=None):
+    def update_frame(self, frame, landmarks=None, analysis_results=None, colors=None):
         """
         Update the webcam panel with a new frame and visualization data
 
@@ -692,52 +699,37 @@ class PostureWindow(QWidget):
         if landmarks:
             self.landmarks = landmarks
 
-        if analysis_results:
-            self.analysis_results = analysis_results
+        # todo non serve a niente
+        # if analysis_results:
+        #     self.analysis_results = analysis_results
 
         # Draw posture visualization on the frame
         if self.landmarks:
-            # Determine component colors based on scores
-            component_colors = {}
-            if "scores" in self.analysis_results:
-                scores = self.analysis_results["scores"]
-                for component in ["neck", "shoulders", "torso"]:
-                    score = scores.get(BODY_COMPONENTS[component]["score"], 0)
-                    if score > 60:
-                        component_colors[component] = COLORS["green"]
-                    elif score > 30:
-                        component_colors[component] = COLORS["yellow"]
-                    else:
-                        component_colors[component] = COLORS["red"]
-            else:
-                # Default colors if no scores
-                component_colors = {"neck": COLORS["red"], "shoulders": COLORS["red"], "torso": COLORS["red"]}
-
             # Draw landmarks
             draw_landmarks(self.current_frame, self.landmarks)
 
             # Draw posture lines with appropriate colors
-            draw_posture_lines(self.current_frame, self.landmarks, component_colors)
+            draw_posture_lines(self.current_frame, self.landmarks, colors)
 
             # Draw angles if available in the results
-            if "neck_angle" in self.analysis_results and "torso_angle" in self.analysis_results:
+            if "neck_angle" in analysis_results and "torso_angle" in analysis_results:
                 draw_angle_text(
                     self.current_frame,
                     self.landmarks,
-                    self.analysis_results["neck_angle"],
-                    self.analysis_results["torso_angle"],
+                    analysis_results["neck_angle"],
+                    analysis_results["torso_angle"],
                     COLORS["white"],
                 )
 
             # Draw posture guidance
-            if "issues" in self.analysis_results:
-                draw_posture_guidance(self.current_frame, self.analysis_results)
+            if "issues" in analysis_results:
+                draw_posture_guidance(self.current_frame, analysis_results)
 
             # Draw status indicators
-            if "is_good_posture" in self.analysis_results:
-                draw_posture_indicator(self.current_frame, self.analysis_results["is_good_posture"])
+            if "is_good_posture" in analysis_results:
+                draw_posture_indicator(self.current_frame, analysis_results["is_good_posture"])
 
-            draw_status_bar(self.current_frame, self.analysis_results)
+            draw_status_bar(self.current_frame, analysis_results)
 
         # Convert to Qt format and display
         self._display_frame()
@@ -773,7 +765,7 @@ class PostureWindow(QWidget):
         if self.current_frame is not None:
             self._display_frame()
 
-    def update_results(self, results):
+    def update_results(self, results, colors):
         if not results or not results.get("scores"):
             self.status_widget.show()
             # No valid results - show webcam message
@@ -793,20 +785,22 @@ class PostureWindow(QWidget):
             # Update the icon based on scores
             self.update_icon_image(scores)
 
-            self.update_progress_style(self.torso_widget.progress, scores.get(BODY_COMPONENTS["torso"]["score"], 0))
+            self.update_progress_style(self.torso_widget.progress, scores.get(BODY_COMPONENTS["torso"]["score"], 0), colors["torso"])
             self.update_progress_style(
-                self.shoulders_widget.progress, scores.get(BODY_COMPONENTS["shoulders"]["score"], 0)
+                self.shoulders_widget.progress, scores.get(BODY_COMPONENTS["shoulders"]["score"], 0),
+                colors["shoulders"]
             )
-            self.update_progress_style(self.neck_widget.progress, scores.get(BODY_COMPONENTS["neck"]["score"], 0))
+            self.update_progress_style(self.neck_widget.progress, scores.get(BODY_COMPONENTS["neck"]["score"], 0), colors["neck"])
 
         if issues := results.get("issues"):
             self.issues["shoulders"] = issues.get("shoulders", None)
             self.issues["neck"] = issues.get("neck", None)
             self.issues["torso"] = issues.get("torso", None)
 
+        # todo non serve a niente
         # Update the frame with the new results if we have a frame
-        if self.current_frame is not None:
-            self.update_frame(self.current_frame, landmarks=results.get("landmarks", {}), analysis_results=results)
+        # if self.current_frame is not None:
+        #     self.update_frame(self.current_frame, landmarks=results.get("landmarks", {}), analysis_results=results)
 
     def update_icon_image(self, scores):
         """Update the icon image based on the posture scores"""
@@ -847,14 +841,8 @@ class PostureWindow(QWidget):
             alert.setIcon(QMessageBox.Icon.Information)
             alert.exec()
 
-    def update_progress_style(self, progress_bar, score):
-        if score > 60:
-            color = "green"
-        elif score > 30:
-            color = "yellow"
-        else:
-            color = "red"
-
+    def update_progress_style(self, progress_bar, score, color):
+        rgb_color = f"rgb({color[2]}, {color[1]}, {color[0]})"
         progress_bar.setStyleSheet(
             f"""
             QProgressBar {{
@@ -865,7 +853,7 @@ class PostureWindow(QWidget):
                 background-color: #f0f0f0;
             }}
             QProgressBar::chunk {{
-                background-color: {color};
+                background-color: {rgb_color};
             }}
         """
         )
