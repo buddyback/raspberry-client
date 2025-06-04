@@ -599,13 +599,6 @@ class PostureDetector(QObject):
                 # Process the frame
                 processed_frame = await self.process_frame(frame)
 
-                # Display the processed frame in PyQt interface
-                # Update both the webcam view and the posture window (active view)
-                # todo rimossa perché apparentemente non fa un cazzo di niente
-                # self.app_controller.webcam_view.update_frame(
-                #     frame=processed_frame,
-                # )
-
                 # Also update the posture window's webcam feed when session is active
                 if current_session_active:
                     self.app_controller.posture_window.update_frame(
