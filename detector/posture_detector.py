@@ -379,8 +379,8 @@ class PostureDetector(QObject):
 
                             await self.gpio_client.long_alert()
                             # asyncio.create_task(self.gpio_client.long_alert()) # todo decide if we want to use this
-                        self.last_alert_time = now
-                        # todo alert to display
+                            self.last_alert_time = now
+                            # todo alert to display
 
         # Update landmarks with head tilted back status for visualization
         landmarks["is_head_tilted_back"] = analysis_results["is_head_tilted_back"]
