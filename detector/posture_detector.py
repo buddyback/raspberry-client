@@ -612,7 +612,7 @@ class PostureDetector(QObject):
                         frame=processed_frame,
                         landmarks=getattr(self, '_last_landmarks', {}),
                         analysis_results=getattr(self, '_last_analysis_results', {}),
-                        colors=self.get_colors(1),
+                        colors=self.get_colors(3),
                     )
 
                 # Process Qt events to keep the UI responsive

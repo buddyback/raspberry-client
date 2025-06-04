@@ -392,13 +392,13 @@ class StatusWidget(QWidget):
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Icon
-        icon_label = QLabel()
-        # pixmap = QPixmap(image_path).scaled(
-        #     100, 100, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
-        # )
-        # icon_label.setPixmap(pixmap)
-        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(icon_label)
+        # icon_label = QLabel()
+        # # pixmap = QPixmap(image_path).scaled(
+        # #     100, 100, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+        # # )
+        # # icon_label.setPixmap(pixmap)
+        # icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # layout.addWidget(icon_label)
 
         # Label text
         text_label = QLabel(label_text)
@@ -609,13 +609,13 @@ class PostureWindow(QWidget):
         main_layout.addWidget(left_panel)
 
         # Add the image
-        self.image_label = QLabel()
-        pixmap = QPixmap("images/new_icons/RRR.png")
-        self.image_label.setPixmap(pixmap)
-        self.image_label.setScaledContents(True)
-        self.image_label.setFixedWidth(200)
-        self.image_label.setFixedHeight(250)
-        left_layout.addWidget(self.image_label)
+        # self.image_label = QLabel()
+        # pixmap = QPixmap("images/new_icons/RRR.png")
+        # self.image_label.setPixmap(pixmap)
+        # self.image_label.setScaledContents(True)
+        # self.image_label.setFixedWidth(200)
+        # self.image_label.setFixedHeight(250)
+        # left_layout.addWidget(self.image_label)
 
         # Status widget for alerts
         self.status_widget = QLabel("Please fix webcam placement")
@@ -783,7 +783,7 @@ class PostureWindow(QWidget):
             self.neck_widget.progress.setValue(scores.get(BODY_COMPONENTS["neck"]["score"], 0))
 
             # Update the icon based on scores
-            self.update_icon_image(scores)
+            # self.update_icon_image(scores)
 
             self.update_progress_style(self.torso_widget.progress, scores.get(BODY_COMPONENTS["torso"]["score"], 0), colors["torso"])
             self.update_progress_style(
@@ -802,36 +802,36 @@ class PostureWindow(QWidget):
         # if self.current_frame is not None:
         #     self.update_frame(self.current_frame, landmarks=results.get("landmarks", {}), analysis_results=results)
 
-    def update_icon_image(self, scores):
-        """Update the icon image based on the posture scores"""
-        # Determine status for each component
-        neck_status = (
-            "G"
-            if scores.get(BODY_COMPONENTS["neck"]["score"], 0) > 60
-            else "Y" if scores.get(BODY_COMPONENTS["neck"]["score"], 0) > 30 else "R"
-        )
-        shoulders_status = (
-            "G"
-            if scores.get(BODY_COMPONENTS["shoulders"]["score"], 0) > 60
-            else "Y" if scores.get(BODY_COMPONENTS["shoulders"]["score"], 0) > 30 else "R"
-        )
-        torso_status = (
-            "G"
-            if scores.get(BODY_COMPONENTS["torso"]["score"], 0) > 60
-            else "Y" if scores.get(BODY_COMPONENTS["torso"]["score"], 0) > 30 else "R"
-        )
-
-        # Construct icon filename from component statuses
-        icon_filename = f"{neck_status}{shoulders_status}{torso_status}.png"
-        icon_path = f"images/new_icons/{icon_filename}"
-
-        try:
-            # Update the image
-            pixmap = QPixmap(icon_path)
-            self.image_label.setPixmap(pixmap)
-        except:
-            # Fallback if image not found
-            print(f"Warning: Could not load icon image {icon_path}")
+    # def update_icon_image(self, scores):
+    #     """Update the icon image based on the posture scores"""
+    #     # Determine status for each component
+    #     neck_status = (
+    #         "G"
+    #         if scores.get(BODY_COMPONENTS["neck"]["score"], 0) > 60
+    #         else "Y" if scores.get(BODY_COMPONENTS["neck"]["score"], 0) > 30 else "R"
+    #     )
+    #     shoulders_status = (
+    #         "G"
+    #         if scores.get(BODY_COMPONENTS["shoulders"]["score"], 0) > 60
+    #         else "Y" if scores.get(BODY_COMPONENTS["shoulders"]["score"], 0) > 30 else "R"
+    #     )
+    #     torso_status = (
+    #         "G"
+    #         if scores.get(BODY_COMPONENTS["torso"]["score"], 0) > 60
+    #         else "Y" if scores.get(BODY_COMPONENTS["torso"]["score"], 0) > 30 else "R"
+    #     )
+    #
+    #     # Construct icon filename from component statuses
+    #     icon_filename = f"{neck_status}{shoulders_status}{torso_status}.png"
+    #     icon_path = f"images/new_icons/{icon_filename}"
+    #
+    #     try:
+    #         # Update the image
+    #         pixmap = QPixmap(icon_path)
+    #         self.image_label.setPixmap(pixmap)
+    #     except:
+    #         # Fallback if image not found
+    #         print(f"Warning: Could not load icon image {icon_path}")
 
     def handle_widget_click(self, component):
         if issue := self.issues.get(component):
