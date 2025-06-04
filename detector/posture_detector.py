@@ -97,12 +97,12 @@ class PostureDetector(QObject):
         self.history.append((datetime.now(), analysis_results))
 
         # todo make it an async task
-        # pop elements if SLIDING_WINDOW_DURATION (which is a duration in seconds) is reached
+        # pop elements if ALERT_SLIDING_WINDOW_DURATION (which is a duration in seconds) is reached
         while len(self.history) > 0:
             first_time, _ = self.history[0]
             now = datetime.now()
             diff = now - first_time
-            if diff.total_seconds() > SLIDING_WINDOW_DURATION:
+            if diff.total_seconds() > ALERT_SLIDING_WINDOW_DURATION:
                 self.history.pop(0)
             else:
                 break
