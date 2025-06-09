@@ -27,7 +27,6 @@ from utils.pigpio import PigpioClient
 from utils.raspi_screen import set_screen_cooldown, turn_on_screen
 from utils.visualization import (
     draw_landmarks,
-    draw_posture_lines,
     get_optimal_font_scale,
 )
 
@@ -330,15 +329,6 @@ class PostureDetector(QObject):
         self._maybe_send_posture(analysis_results)
 
         last_scores = self._get_average_score(SLIDING_WINDOW_DURATION)
-        colors_to_use = {
-            component: (
-                COLORS["red"] if last_scores[BODY_COMPONENTS[component]["score"]] < sensitivity else COLORS["green"]
-            )
-            for component in ["neck", "torso", "shoulders"]
-        }
-
-        #draw_posture_lines(frame, landmarks, colors_to_use)
-        # draw_landmarks(frame, landmarks, colors_to_use)
 
         webcam_placement = analysis_results.get("webcam_placement", "unknown")
         # todo if is sitted for long, start idle stuff
@@ -418,7 +408,6 @@ class PostureDetector(QObject):
             else:
                 components[component] = COLORS["green"]
         return components
-
 
     def handle_keyboard_input(self, key):
         """
@@ -603,8 +592,8 @@ class PostureDetector(QObject):
                 if current_session_active:
                     self.app_controller.posture_window.update_frame(
                         frame=processed_frame,
-                        landmarks=getattr(self, '_last_landmarks', {}),
-                        analysis_results=getattr(self, '_last_analysis_results', {}),
+                        landmarks=getattr(self, "_last_landmarks", {}),
+                        analysis_results=getattr(self, "_last_analysis_results", {}),
                         colors=self.get_colors(3),
                     )
 
