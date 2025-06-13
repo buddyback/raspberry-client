@@ -389,16 +389,23 @@ class StatusWidget(QWidget):
 
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(2)  # Very minimal spacing between label and progress bar
+        layout.setContentsMargins(2, 2, 2, 2)  # Very minimal margins
 
-        # Label text
+        # Label text - even larger for maximum distance reading
         text_label = QLabel(label_text)
         text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        text_label.setStyleSheet("color: white; font-weight: bold;")
+        text_label.setStyleSheet("""
+            color: white; 
+            font-weight: bold; 
+            font-size: 32px;
+            padding: 8px;
+        """)
         layout.addWidget(text_label)
 
-        # Progress bar
+        # Progress bar - much larger for maximum visibility
         self.progress = QProgressBar()
-        self.progress.setFixedWidth(100)
+        self.progress.setFixedSize(400, 60)  # Longer bars: 240px wide to better fill the 260px panel
         self.progress.setValue(score)
         self.progress.setTextVisible(True)
         self.progress.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -411,18 +418,21 @@ class StatusWidget(QWidget):
         else:
             color = "red"
 
-        # Stylesheet with black border and text
+        # Stylesheet with black border and even larger text for maximum distance reading
         self.progress.setStyleSheet(
             f"""
             QProgressBar {{
-                border: 2px solid black;
-                border-radius: 5px;
+                border: 4px solid black;
+                border-radius: 10px;
                 text-align: center;
                 color: black;
                 background-color: #f0f0f0;
+                font-size: 24px;
+                font-weight: bold;
             }}
             QProgressBar::chunk {{
                 background-color: {color};
+                border-radius: 6px;
             }}
         """
         )
@@ -514,12 +524,17 @@ class PostureWindow(QWidget):
 
         # Main layout setup - use HBoxLayout for side-by-side arrangement
         main_layout = QHBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins from main layout
+        main_layout.setSpacing(0)  # Remove spacing between widgets
         self.setLayout(main_layout)
 
         # Left side - Status widgets and image in vertical layout
         left_panel = QWidget()
+        left_panel.setFixedWidth(410)  # Make even narrower to reduce gap
         left_layout = QVBoxLayout(left_panel)
-        left_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        left_layout.setAlignment(Qt.AlignmentFlag.AlignTop)  # Align to top instead of center
+        left_layout.setContentsMargins(2, 2, 2, 2)  # Even smaller margins
+        left_layout.setSpacing(5)  # Reduced spacing
         main_layout.addWidget(left_panel)
 
         # Status widget for alerts
@@ -541,7 +556,8 @@ class PostureWindow(QWidget):
         # Container for posture components
         self.posture_container = QWidget()
         posture_layout = QVBoxLayout(self.posture_container)
-        posture_layout.setContentsMargins(0, 0, 0, 0)
+        posture_layout.setContentsMargins(2, 2, 2, 2)  # Even smaller margins
+        posture_layout.setSpacing(5)  # Reduced spacing between components
         left_layout.addWidget(self.posture_container)
 
         # Add the three status widgets vertically
@@ -560,15 +576,22 @@ class PostureWindow(QWidget):
         self.neck_widget.mousePressEvent = lambda event: self.handle_widget_click("neck")
         posture_layout.addWidget(self.neck_widget)
 
+        # Add stretch to push components to the top and fill remaining space
+        left_layout.addStretch()
+
         # Right side - Webcam feed with 2D skeleton
         self.webcam_panel = QWidget()
         webcam_layout = QVBoxLayout(self.webcam_panel)
-        main_layout.addWidget(self.webcam_panel, 2)  # Give more space to the webcam panel (2:1 ratio)
+        webcam_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins from webcam panel
+        webcam_layout.setSpacing(0)  # Remove spacing
+        main_layout.addWidget(self.webcam_panel)  # Remove stretch factor to let it take remaining space
 
         # Create label to display the webcam feed
         self.webcam_label = QLabel()
-        self.webcam_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.webcam_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)  # Align to right
         self.webcam_label.setStyleSheet("background-color: black;")
+        # Set minimum size to fill all available space in right panel (400px width x 480px height)
+        self.webcam_label.setMinimumHeight(500)
         webcam_layout.addWidget(self.webcam_label)
 
         # Current frame and analysis data
@@ -648,17 +671,23 @@ class PostureWindow(QWidget):
         bytes_per_line = ch * w
         qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
 
-        # Scale the image to fit the label while maintaining aspect ratio
+        # Scale the image to fit while maintaining original aspect ratio
         pixmap = QPixmap.fromImage(qt_image)
-        pixmap = pixmap.scaled(
-            self.webcam_label.width(),
-            self.webcam_label.height(),
-            Qt.AspectRatioMode.KeepAspectRatio,
+        
+        # Get the available space
+        available_width = self.webcam_label.width()
+        available_height = self.webcam_label.height()
+        
+        # Scale to fit while maintaining aspect ratio - NO STRETCHING
+        scaled_pixmap = pixmap.scaled(
+            available_width,
+            available_height,
+            Qt.AspectRatioMode.KeepAspectRatio,  # Maintain original aspect ratio
             Qt.TransformationMode.SmoothTransformation,
         )
 
         # Display the image
-        self.webcam_label.setPixmap(pixmap)
+        self.webcam_label.setPixmap(scaled_pixmap)
 
     def resizeEvent(self, event):
         """Handle resize events to update the displayed frame"""
@@ -716,14 +745,17 @@ class PostureWindow(QWidget):
         progress_bar.setStyleSheet(
             f"""
             QProgressBar {{
-                border: 2px solid black;
-                border-radius: 5px;
+                border: 4px solid black;
+                border-radius: 10px;
                 text-align: center;
                 color: black;
                 background-color: #f0f0f0;
+                font-size: 24px;
+                font-weight: bold;
             }}
             QProgressBar::chunk {{
                 background-color: {rgb_color};
+                border-radius: 6px;
             }}
         """
         )
