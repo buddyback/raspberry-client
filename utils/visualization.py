@@ -395,12 +395,14 @@ class StatusWidget(QWidget):
         # Label text - even larger for maximum distance reading
         text_label = QLabel(label_text)
         text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        text_label.setStyleSheet("""
+        text_label.setStyleSheet(
+            """
             color: white; 
             font-weight: bold; 
             font-size: 32px;
             padding: 8px;
-        """)
+        """
+        )
         layout.addWidget(text_label)
 
         # Progress bar - much larger for maximum visibility
@@ -626,7 +628,6 @@ class PostureWindow(QWidget):
         if landmarks:
             self.landmarks = landmarks
 
-
         # Draw posture visualization on the frame
         if self.landmarks:
             # Draw landmarks
@@ -673,11 +674,11 @@ class PostureWindow(QWidget):
 
         # Scale the image to fit while maintaining original aspect ratio
         pixmap = QPixmap.fromImage(qt_image)
-        
+
         # Get the available space
         available_width = self.webcam_label.width()
         available_height = self.webcam_label.height()
-        
+
         # Scale to fit while maintaining aspect ratio - NO STRETCHING
         scaled_pixmap = pixmap.scaled(
             available_width,
