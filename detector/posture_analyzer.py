@@ -19,7 +19,6 @@ def is_looking_at_camera(landmarks):
     right_eye = landmarks[5]
 
     visibility = min(left_eye.visibility, right_eye.visibility)
-    print("visibility", visibility)
 
     return visibility > 0.995  # todo make it a parameter
 
