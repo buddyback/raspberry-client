@@ -363,12 +363,12 @@ class PostureDetector(QObject):
                 # For each component, check if the score is below the sensitivity threshold to trigger alert
                 for component, score in scores.items():
                     if score < sensitivity:
-                        print("your average is very bad bro:", component, "is", score)
+                        print("bad avg score:", component, "is", score)
                         now = datetime.now()
                         if self.last_alert_time is None or now - self.last_alert_time > timedelta(
                             seconds=WARNING_COOLDOWN
                         ):
-
+                            print("vibro tutta")
                             p = multiprocessing.Process(target=self.gpio_client.long_alert_thread, args=(self.settings.get("vibration_intensity", 100),))
                             p.start()
                             self.last_alert_time = now
