@@ -3,6 +3,7 @@ Main posture detection module that integrates camera capture and posture analysi
 """
 
 import asyncio
+import multiprocessing
 import os
 import signal
 import time
@@ -368,8 +369,8 @@ class PostureDetector(QObject):
                             seconds=WARNING_COOLDOWN
                         ):
 
-                            await self.gpio_client.long_alert()
-                            # asyncio.create_task(self.gpio_client.long_alert()) # todo decide if we want to use this
+                            multiprocessing.Process(target=self.gpio_client.long_alert, args=(self.settings.get("vibration_intensity", 100),)).start()
+
                             self.last_alert_time = now
                             # todo alert to display
 
