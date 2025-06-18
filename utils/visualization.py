@@ -5,7 +5,7 @@ Visualization utilities for the posture detector.
 import os
 
 import cv2
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtWidgets import (
     QHBoxLayout,
@@ -523,6 +523,7 @@ class PostureWindow(QWidget):
         self.setWindowTitle("Posture Status")
         self.setFixedSize(800, 480)
         self.issues = {}
+        self.alert_active = False  # Flag to track if an alert is currently active
 
         # Main layout setup - use HBoxLayout for side-by-side arrangement
         main_layout = QHBoxLayout()
@@ -540,7 +541,7 @@ class PostureWindow(QWidget):
         main_layout.addWidget(left_panel)
 
         # Status widget for alerts
-        self.status_widget = QLabel("Please fix webcam placement")
+        self.status_widget = QLabel("")
         self.status_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_widget.setStyleSheet(
             """
@@ -696,13 +697,29 @@ class PostureWindow(QWidget):
         if self.current_frame is not None:
             self._display_frame()
 
-    def update_results(self, results, colors):
-        if not results or not results.get("scores"):
-            self.status_widget.show()
-            # No valid results - show webcam message
-            self.posture_container.hide()
-            return
+    def show_alert(self, message, duration=None):
+        """
+        Show an alert message in the status widget
+        """
+        # Se un alert è già attivo, non fare nulla
 
+        self.status_widget.setText(message)
+        self.status_widget.show()
+        self.posture_container.hide()
+
+        if duration:
+            if self.alert_active:
+                return
+
+            self.alert_active = True
+            # Usa singleShot con reset del flag
+            QTimer.singleShot(duration, lambda: (
+                self.status_widget.hide(),
+                self.posture_container.show(),
+                setattr(self, 'alert_active', False)  # Reset del flag
+            ))
+
+    def update_results(self, results, colors):
         # Valid results - show posture container and update status
         self.posture_container.show()
         self.status_widget.hide()

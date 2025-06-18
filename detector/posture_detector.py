@@ -16,13 +16,12 @@ from PyQt6.QtWidgets import QApplication
 
 from config.settings import (
     ALERT_SLIDING_WINDOW_DURATION,
-    BODY_COMPONENTS,
     COLORS,
-    FONT_FACE,
     SEND_INTERVAL,
     SLIDING_WINDOW_DURATION,
     WARNING_COOLDOWN,
 )
+from config.settings import BODY_COMPONENTS
 from detector.posture_analyzer import PostureAnalyzer, is_looking_at_camera
 from utils.pigpio import PigpioClient
 from utils.raspi_screen import set_screen_cooldown, turn_on_screen
@@ -302,20 +301,11 @@ class PostureDetector(QObject):
 
         # Process the image with MediaPipe
         result = self.pose.process(rgb_frame)
-        webcam_placement_text = "Webcam Placement: "
-        webcam_placement_color = COLORS["red"]
         if not result.pose_landmarks:
-            webcam_placement_text += f"Person is not visible"
-            cv2.putText(
-                frame,
-                webcam_placement_text,
-                (10, 30),
-                FONT_FACE,
-                font_scale,
-                webcam_placement_color,
-                thickness,
+            webcam_placement_text = f"Person is not visible"
+            self.app_controller.posture_window.show_alert(
+                webcam_placement_text
             )
-            self.app_controller.posture_window.update_results({}, None)
             return frame
 
         # Extract landmarks
@@ -369,9 +359,21 @@ class PostureDetector(QObject):
                         ):
                             print("vibro tutta")
                             p = multiprocessing.Process(target=self.gpio_client.long_alert_thread, args=(self.settings.get("vibration_intensity", 100),))
+                            # Show alert in the posture window
+                            webcam_placement_text = ""
+                            match component:
+                                case "neck_score":
+                                    webcam_placement_text = "Straighten your neck"
+                                case "torso_score":
+                                    webcam_placement_text = "Sit upright"
+                                case "shoulders_score":
+                                    webcam_placement_text = "Face the desk"
+                            self.app_controller.posture_window.show_alert(
+                                webcam_placement_text, 5000
+                            )
                             p.start()
                             self.last_alert_time = now
-                            # todo alert to display
+
 
         # Update landmarks with head tilted back status for visualization
         landmarks["is_head_tilted_back"] = analysis_results["is_head_tilted_back"]
@@ -381,15 +383,11 @@ class PostureDetector(QObject):
         self._last_analysis_results = analysis_results
 
         # Add main angle text at top
-
         if webcam_placement != "good":
-            webcam_placement_text += f"{webcam_placement.upper()} is not visible"
-        else:
-            webcam_placement_text += webcam_placement
-            webcam_placement_color = COLORS["green"]
-
-        # text_size = cv2.getTextSize(webcam_placement_text, FONT_FACE, font_scale, thickness)[0]
-        cv2.putText(frame, webcam_placement_text, (10, 30), FONT_FACE, font_scale, webcam_placement_color, thickness)
+            webcam_placement_text = f"{webcam_placement.upper()} is not visible"
+            self.app_controller.posture_window.show_alert(
+                webcam_placement_text
+            )
 
         return frame
 
