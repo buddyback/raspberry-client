@@ -2,6 +2,8 @@
 
 This application uses computer vision to detect and provide feedback on your sitting posture using a webcam.
 
+# [Watch video presentation](https://www.youtube.com/watch?v=6V_hrUXwh0k&feature=youtu.be)
+
 ## Features
 
 - Real-time posture monitoring
