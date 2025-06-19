@@ -357,7 +357,7 @@ class PostureDetector(QObject):
                         if self.last_alert_time is None or now - self.last_alert_time > timedelta(
                             seconds=WARNING_COOLDOWN
                         ):
-                            print("vibro tutta")
+                            print("alert successfully sent")
                             p = multiprocessing.Process(target=self.gpio_client.long_alert_thread, args=(self.settings.get("vibration_intensity", 100),))
                             # Show alert in the posture window
                             webcam_placement_text = ""
