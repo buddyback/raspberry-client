@@ -2,9 +2,13 @@
 """
 Main entry point for the Posture Detector application.
 """
+# Fix protobuf compatibility issue between TensorFlow and MediaPipe
+# Must be set before any imports that use protobuf
+import os
+os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
+
 import argparse
 import asyncio
-import os
 import sys
 
 import websockets
