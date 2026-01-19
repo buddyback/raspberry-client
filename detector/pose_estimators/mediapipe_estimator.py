@@ -1,14 +1,13 @@
 """
 MediaPipe Pose Estimator implementation.
 
-This module wraps Google's MediaPipe PoseLandmarker (Tasks API) to conform to the
+This module wraps Google's MediaPipe Pose (Legacy Solutions API) to conform to the
 PoseEstimator interface.
 
-Note: MediaPipe 0.10+ uses the new Tasks API instead of the legacy Solutions API.
+Note: Using the legacy Solutions API for better compatibility with TensorFlow/protobuf.
+The newer Tasks API has compatibility issues with protobuf >= 5.x.
 """
 
-import os
-import urllib.request
 from typing import List
 
 import cv2
@@ -19,26 +18,16 @@ from .base import Landmark, PoseEstimator, PoseResult
 
 class MediaPipePoseEstimator(PoseEstimator):
     """
-    Pose estimator using Google MediaPipe PoseLandmarker (Tasks API).
+    Pose estimator using Google MediaPipe Pose (Legacy Solutions API).
     
     MediaPipe Pose is a ML pipeline for 33 full-body pose landmarks.
     It's optimized for real-time performance and works well on various devices.
     
     Args:
-        model_complexity: Which model to use:
-            0 = pose_landmarker_lite.task (fastest)
-            1 = pose_landmarker_full.task (balanced)
-            2 = pose_landmarker_heavy.task (most accurate)
+        model_complexity: Model complexity (0=lite, 1=full, 2=heavy)
         min_detection_confidence: Minimum confidence for detection [0.0, 1.0]
         min_tracking_confidence: Minimum confidence for tracking [0.0, 1.0]
     """
-    
-    # Model URLs from MediaPipe
-    MODEL_URLS = {
-        0: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task",
-        1: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task",
-        2: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task",
-    }
     
     MODEL_NAMES = {
         0: "lite",
@@ -47,7 +36,7 @@ class MediaPipePoseEstimator(PoseEstimator):
     }
     
     # Mapping from landmark indices to our standard names
-    # MediaPipe PoseLandmarker uses these indices
+    # MediaPipe Pose uses these indices (same as PoseLandmark enum)
     LANDMARK_MAPPING = {
         0: "nose",
         1: "l_eye_inner",
@@ -95,9 +84,8 @@ class MediaPipePoseEstimator(PoseEstimator):
         self._model_complexity = model_complexity
         self._min_detection_confidence = min_detection_confidence
         self._min_tracking_confidence = min_tracking_confidence
-        self._landmarker = None
-        self._mp = None
-        self._vision = None
+        self._pose = None
+        self._mp_pose = None
     
     @property
     def name(self) -> str:
@@ -108,65 +96,40 @@ class MediaPipePoseEstimator(PoseEstimator):
     def supported_landmarks(self) -> List[str]:
         return list(self.LANDMARK_MAPPING.values())
     
-    def _download_model(self) -> str:
-        """Download the model file if not available locally."""
-        cache_dir = os.path.expanduser("~/.cache/pose_estimators/mediapipe")
-        os.makedirs(cache_dir, exist_ok=True)
-        
-        model_name = self.MODEL_NAMES.get(self._model_complexity, "full")
-        model_filename = f"pose_landmarker_{model_name}.task"
-        model_path = os.path.join(cache_dir, model_filename)
-        
-        if not os.path.exists(model_path):
-            url = self.MODEL_URLS.get(self._model_complexity, self.MODEL_URLS[1])
-            print(f"[MediaPipe] Downloading model to {model_path}...")
-            urllib.request.urlretrieve(url, model_path)
-            print("[MediaPipe] Download complete")
-        
-        return model_path
-    
     def initialize(self) -> None:
-        """Initialize the MediaPipe PoseLandmarker."""
+        """Initialize the MediaPipe Pose (Legacy Solutions API)."""
         if self._initialized:
             return
         
         try:
             import mediapipe as mp
-            from mediapipe.tasks import python
-            from mediapipe.tasks.python import vision
             
-            self._mp = mp
-            self._vision = vision
+            self._mp_pose = mp.solutions.pose
             
-            # Download model if needed
-            model_path = self._download_model()
-            
-            # Create options
-            base_options = python.BaseOptions(model_asset_path=model_path)
-            options = vision.PoseLandmarkerOptions(
-                base_options=base_options,
-                running_mode=vision.RunningMode.IMAGE,  # For single frame processing
-                min_pose_detection_confidence=self._min_detection_confidence,
+            # Create the pose estimator using Legacy Solutions API
+            self._pose = self._mp_pose.Pose(
+                static_image_mode=False,  # For video/webcam processing
+                model_complexity=self._model_complexity,
+                smooth_landmarks=True,
+                enable_segmentation=False,
+                min_detection_confidence=self._min_detection_confidence,
                 min_tracking_confidence=self._min_tracking_confidence,
             )
             
-            # Create the landmarker
-            self._landmarker = vision.PoseLandmarker.create_from_options(options)
-            
             self._initialized = True
             model_name = self.MODEL_NAMES.get(self._model_complexity, "unknown")
-            print(f"[MediaPipe] Initialized with model={model_name}")
+            print(f"[MediaPipe] Initialized with model={model_name} (Solutions API)")
             
         except ImportError as e:
             raise RuntimeError(
                 "MediaPipe is required. Install with: pip install mediapipe"
             ) from e
         except Exception as e:
-            raise RuntimeError(f"Failed to initialize MediaPipe PoseLandmarker: {e}")
+            raise RuntimeError(f"Failed to initialize MediaPipe Pose: {e}")
     
     def process(self, frame: np.ndarray) -> PoseResult:
         """
-        Process a frame using MediaPipe PoseLandmarker.
+        Process a frame using MediaPipe Pose.
         
         Args:
             frame: BGR image (OpenCV format)
@@ -183,14 +146,11 @@ class MediaPipePoseEstimator(PoseEstimator):
         # Convert BGR to RGB for MediaPipe
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
-        # Create MediaPipe Image
-        mp_image = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=rgb_frame)
-        
-        # Detect pose landmarks
-        result = self._landmarker.detect(mp_image)
+        # Process the frame
+        result = self._pose.process(rgb_frame)
         
         # Check if pose was detected
-        if not result.pose_landmarks or len(result.pose_landmarks) == 0:
+        if result.pose_landmarks is None:
             return PoseResult(
                 landmarks={},
                 raw_output=result,
@@ -198,18 +158,15 @@ class MediaPipePoseEstimator(PoseEstimator):
                 error_message="No pose detected in frame"
             )
         
-        # Use the first detected pose
-        pose_landmarks = result.pose_landmarks[0]
-        
         # Extract landmarks
         landmarks = {}
         for idx, name in self.LANDMARK_MAPPING.items():
-            if idx < len(pose_landmarks):
-                lm = pose_landmarks[idx]
+            if idx < len(result.pose_landmarks.landmark):
+                lm = result.pose_landmarks.landmark[idx]
                 landmarks[name] = Landmark(
                     x=int(lm.x * w),
                     y=int(lm.y * h),
-                    visibility=lm.visibility if hasattr(lm, 'visibility') else 1.0,
+                    visibility=lm.visibility,
                     name=name
                 )
         
@@ -222,8 +179,8 @@ class MediaPipePoseEstimator(PoseEstimator):
     
     def cleanup(self) -> None:
         """Release MediaPipe resources."""
-        if self._landmarker is not None:
-            self._landmarker.close()
-            self._landmarker = None
+        if self._pose is not None:
+            self._pose.close()
+            self._pose = None
         self._initialized = False
         print("[MediaPipe] Cleaned up resources")
