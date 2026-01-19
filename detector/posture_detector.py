@@ -8,9 +8,9 @@ import os
 import signal
 import time
 from datetime import datetime, timedelta
+from typing import TYPE_CHECKING
 
 import cv2
-import mediapipe as mp
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QApplication
 
@@ -30,12 +30,20 @@ from utils.visualization import (
     get_optimal_font_scale,
 )
 
+if TYPE_CHECKING:
+    from detector.pose_estimators import PoseEstimator
+
 
 class PostureDetector(QObject):
     """Main class for posture detection"""
 
     def __init__(
-        self, camera_manager, show_guidance=True, model_complexity=2, websocket_client=None, app_controller=None
+        self, 
+        camera_manager, 
+        show_guidance=True, 
+        pose_estimator: "PoseEstimator" = None,
+        websocket_client=None, 
+        app_controller=None
     ):
         """
         Initialize posture detector
@@ -43,7 +51,7 @@ class PostureDetector(QObject):
         Args:
             camera_manager: CameraManager instance for handling video capture
             show_guidance: Whether to show posture correction guidance
-            model_complexity: Complexity of the MediaPipe pose model (0, 1, or 2)
+            pose_estimator: PoseEstimator instance for pose detection
             websocket_client: WebSocket client for sending/receiving data
             app_controller: Controller for the PyQt application
         """
@@ -56,11 +64,10 @@ class PostureDetector(QObject):
         self.good_frames = 0
         self.bad_frames = 0
 
-        # Initialize MediaPipe pose detection
-        self.mp_pose = mp.solutions.pose
-        self.pose = self.mp_pose.Pose(
-            model_complexity=model_complexity, min_detection_confidence=0.7, min_tracking_confidence=0.7
-        )
+        # Store the pose estimator (should already be initialized)
+        if pose_estimator is None:
+            raise ValueError("pose_estimator is required")
+        self.pose_estimator = pose_estimator
 
         # Initialize posture analyzer
         self.analyzer = PostureAnalyzer()
@@ -188,92 +195,58 @@ class PostureDetector(QObject):
         # All window resize functionality has been removed since we're not using OpenCV windows
         return True
 
-    def extract_landmarks(self, pose_landmarks, frame_width, frame_height):
+    def extract_landmarks_from_result(self, pose_result):
         """
-        Extract key landmarks from MediaPipe pose results
+        Convert PoseResult landmarks to the legacy format expected by PostureAnalyzer.
 
         Args:
-            pose_landmarks: MediaPipe pose landmarks
-            frame_width: Width of the frame
-            frame_height: Height of the frame
+            pose_result: PoseResult from the pose estimator
 
         Returns:
-            Dictionary: Key landmarks with coordinates
+            Dictionary: Key landmarks with coordinates in legacy format
         """
-        lm = pose_landmarks
-        lmPose = self.mp_pose.PoseLandmark
-
+        if not pose_result.success:
+            return {}
+        
         landmarks = {}
+        result_landmarks = pose_result.landmarks
 
         try:
-            # Left shoulder
-            landmarks["l_shoulder"] = (
-                int(lm.landmark[lmPose.LEFT_SHOULDER].x * frame_width),
-                int(lm.landmark[lmPose.LEFT_SHOULDER].y * frame_height),
-            )
-
-            # Right shoulder
-            landmarks["r_shoulder"] = (
-                int(lm.landmark[lmPose.RIGHT_SHOULDER].x * frame_width),
-                int(lm.landmark[lmPose.RIGHT_SHOULDER].y * frame_height),
-            )
-
-            # Both ears for better detection regardless of webcam position
-            landmarks["l_ear"] = (
-                int(lm.landmark[lmPose.LEFT_EAR].x * frame_width),
-                int(lm.landmark[lmPose.LEFT_EAR].y * frame_height),
-            )
-
-            landmarks["r_ear"] = (
-                int(lm.landmark[lmPose.RIGHT_EAR].x * frame_width),
-                int(lm.landmark[lmPose.RIGHT_EAR].y * frame_height),
-            )
-
-            # Left hip
-            landmarks["l_hip"] = (
-                int(lm.landmark[lmPose.LEFT_HIP].x * frame_width),
-                int(lm.landmark[lmPose.LEFT_HIP].y * frame_height),
-            )
-
-            # Right hip
-            landmarks["r_hip"] = (
-                int(lm.landmark[lmPose.RIGHT_HIP].x * frame_width),
-                int(lm.landmark[lmPose.RIGHT_HIP].y * frame_height),
-            )
-
-            # Calculate visibility scores for ear landmarks
-            # Higher score = more visible/reliable
-            l_ear_vis = (
-                lm.landmark[lmPose.LEFT_EAR].visibility if hasattr(lm.landmark[lmPose.LEFT_EAR], "visibility") else 0
-            )
-            r_ear_vis = (
-                lm.landmark[lmPose.RIGHT_EAR].visibility if hasattr(lm.landmark[lmPose.RIGHT_EAR], "visibility") else 0
-            )
-            l_hip_vis = (
-                lm.landmark[lmPose.LEFT_HIP].visibility if hasattr(lm.landmark[lmPose.LEFT_HIP], "visibility") else 0
-            )
-            r_hip_vis = (
-                lm.landmark[lmPose.RIGHT_HIP].visibility if hasattr(lm.landmark[lmPose.RIGHT_HIP], "visibility") else 0
-            )
-            l_shoulder_vis = (
-                lm.landmark[lmPose.LEFT_SHOULDER].visibility
-                if hasattr(lm.landmark[lmPose.LEFT_SHOULDER], "visibility")
-                else 0
-            )
-            r_shoulder_vis = (
-                lm.landmark[lmPose.RIGHT_SHOULDER].visibility
-                if hasattr(lm.landmark[lmPose.RIGHT_SHOULDER], "visibility")
-                else 0
-            )
+            # Required landmarks for posture analysis
+            required_landmarks = ["l_shoulder", "r_shoulder", "l_ear", "r_ear", "l_hip", "r_hip"]
+            
+            for name in required_landmarks:
+                if name in result_landmarks:
+                    lm = result_landmarks[name]
+                    landmarks[name] = (lm.x, lm.y)
+                else:
+                    # Landmark not available from this estimator
+                    return {}
+            
+            # Calculate visibility scores
+            l_ear_vis = result_landmarks.get("l_ear", None)
+            r_ear_vis = result_landmarks.get("r_ear", None)
+            l_ear_visibility = l_ear_vis.visibility if l_ear_vis else 0
+            r_ear_visibility = r_ear_vis.visibility if r_ear_vis else 0
+            
+            l_hip_vis = result_landmarks.get("l_hip", None)
+            r_hip_vis = result_landmarks.get("r_hip", None)
+            l_hip_visibility = l_hip_vis.visibility if l_hip_vis else 0
+            r_hip_visibility = r_hip_vis.visibility if r_hip_vis else 0
+            
+            l_shoulder_vis = result_landmarks.get("l_shoulder", None)
+            r_shoulder_vis = result_landmarks.get("r_shoulder", None)
+            l_shoulder_visibility = l_shoulder_vis.visibility if l_shoulder_vis else 0
+            r_shoulder_visibility = r_shoulder_vis.visibility if r_shoulder_vis else 0
 
             # Add information about which ear is more visible (useful for analyzing posture)
-            landmarks["primary_ear"] = "left" if l_ear_vis >= r_ear_vis else "right"
-            landmarks["l_ear_visibility"] = l_ear_vis
-            landmarks["r_ear_visibility"] = r_ear_vis
-            landmarks["l_hip_visibility"] = l_hip_vis
-            landmarks["r_hip_visibility"] = r_hip_vis
-            landmarks["l_shoulder_visibility"] = l_shoulder_vis
-            landmarks["r_shoulder_visibility"] = r_shoulder_vis
+            landmarks["primary_ear"] = "left" if l_ear_visibility >= r_ear_visibility else "right"
+            landmarks["l_ear_visibility"] = l_ear_visibility
+            landmarks["r_ear_visibility"] = r_ear_visibility
+            landmarks["l_hip_visibility"] = l_hip_visibility
+            landmarks["r_hip_visibility"] = r_hip_visibility
+            landmarks["l_shoulder_visibility"] = l_shoulder_visibility
+            landmarks["r_shoulder_visibility"] = r_shoulder_visibility
 
             return landmarks
 
@@ -296,20 +269,26 @@ class PostureDetector(QObject):
         font_scale = get_optimal_font_scale(w)
         thickness = max(1, int(w / 640))
 
-        # Convert the BGR image to RGB for MediaPipe
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        # Process the image with MediaPipe
-        result = self.pose.process(rgb_frame)
-        if not result.pose_landmarks:
-            webcam_placement_text = f"Person is not visible"
+        # Process the image with the pose estimator
+        pose_result = self.pose_estimator.process(frame)
+        
+        if not pose_result.success:
+            webcam_placement_text = "Person is not visible"
             self.app_controller.posture_window.show_alert(
                 webcam_placement_text
             )
             return frame
 
-        # Extract landmarks
-        landmarks = self.extract_landmarks(result.pose_landmarks, w, h)
+        # Extract landmarks in legacy format
+        landmarks = self.extract_landmarks_from_result(pose_result)
+        
+        if not landmarks:
+            webcam_placement_text = "Person is not visible"
+            self.app_controller.posture_window.show_alert(
+                webcam_placement_text
+            )
+            return frame
+            
         draw_landmarks(frame, landmarks)
 
         sensitivity = self.settings.get("sensitivity", -1)
@@ -341,9 +320,16 @@ class PostureDetector(QObject):
         self.app_controller.posture_window.update_results(results, colors)
 
         if os.getenv("RASPI_DISPLAY", False).lower() in ["true", "1", "yes"]:
-            user_looking = is_looking_at_camera(result.pose_landmarks.landmark)
-            if user_looking:
-                turn_on_screen()  # wake up the screen if user is looking at it
+            # is_looking_at_camera only works with MediaPipe raw output
+            # Try to extract the landmarks from raw_output if available
+            try:
+                raw = pose_result.raw_output
+                if hasattr(raw, 'pose_landmarks') and raw.pose_landmarks:
+                    user_looking = is_looking_at_camera(raw.pose_landmarks.landmark)
+                    if user_looking:
+                        turn_on_screen()  # wake up the screen if user is looking at it
+            except (AttributeError, TypeError):
+                pass  # Skip for non-MediaPipe estimators
 
         if os.getenv("DISABLE_VIBRATION", False).lower() not in ["true", "1", "yes"]:
             # If the last posture is bad then...

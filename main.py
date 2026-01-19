@@ -13,6 +13,7 @@ from qasync import QApplication as QAsyncApplication
 from qasync import QEventLoop
 
 from config.settings import DEFAULT_CAMERA_HEIGHT, DEFAULT_CAMERA_WIDTH
+from detector.pose_estimators import EstimatorType, create_estimator
 from detector.posture_detector import PostureDetector
 from utils.camera import CameraManager
 from utils.visualization import MainAppController
@@ -47,11 +48,18 @@ def parse_arguments():
         help="Rotate webcam image by specified degrees (default: 0)",
     )
     parser.add_argument(
-        "--model",
+        "--estimator",
+        type=str,
+        default="mediapipe",
+        choices=["mediapipe", "movenet_lightning", "movenet_thunder", "posenet", "hulk"],
+        help="Pose estimation model to use (default: mediapipe)",
+    )
+    parser.add_argument(
+        "--model-complexity",
         type=int,
         default=2,
         choices=[0, 1, 2],
-        help="MediaPipe model complexity  (default: 2)",
+        help="MediaPipe model complexity, only used with --estimator=mediapipe (default: 2)",
     )
 
     return parser.parse_args()
@@ -88,11 +96,20 @@ async def main():
             # Initialize app controller first
             app_controller = MainAppController()
 
-            # Initialize posture detector
+            # Create pose estimator based on command line argument
+            estimator_kwargs = {}
+            if args.estimator == "mediapipe":
+                estimator_kwargs["model_complexity"] = args.model_complexity
+            
+            pose_estimator = create_estimator(args.estimator, **estimator_kwargs)
+            pose_estimator.initialize()
+            print(f"Using pose estimator: {pose_estimator.name}")
+
+            # Initialize posture detector with injected estimator
             detector = PostureDetector(
                 camera_manager=camera_manager,
                 show_guidance=not args.no_guidance,
-                model_complexity=args.model,
+                pose_estimator=pose_estimator,
                 websocket_client=websocket_client,
                 app_controller=app_controller,
             )
