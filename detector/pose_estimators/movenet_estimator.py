@@ -83,12 +83,33 @@ class MoveNetPoseEstimator(PoseEstimator):
     def supported_landmarks(self) -> List[str]:
         return MOVENET_KEYPOINTS.copy()
     
+    @property
+    def visibility_thresholds(self) -> dict:
+        """
+        MoveNet-specific visibility thresholds.
+        
+        MoveNet outputs lower confidence values than MediaPipe (typically 0.1-0.5
+        for visible keypoints vs 0.9-1.0 for MediaPipe). These thresholds are
+        calibrated for MoveNet's native output range.
+        """
+        return {
+            "ear": 0.10,
+            "hip": 0.10,
+            "shoulder": 0.15,
+        }
+    
     def initialize(self) -> None:
         """Initialize the MoveNet model from TensorFlow Hub."""
         if self._initialized:
             return
         
         try:
+            # Force CPU-only mode to avoid GPU compatibility issues
+            # This is especially important for Raspberry Pi (no GPU) and
+            # newer GPUs that may not have compatible CUDA kernels
+            import os
+            os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+            
             # Lazy import TensorFlow to avoid loading it if not needed
             import tensorflow as tf
             import tensorflow_hub as hub
@@ -96,7 +117,7 @@ class MoveNetPoseEstimator(PoseEstimator):
             self._tf = tf
             self._hub = hub
             
-            print(f"[MoveNet] Loading model: {self._variant}...")
+            print(f"[MoveNet] Loading model: {self._variant}... (CPU mode)")
             model_url = self.MODEL_URLS[self._variant]
             
             # Load the model from TensorFlow Hub
@@ -179,7 +200,7 @@ class MoveNetPoseEstimator(PoseEstimator):
             landmarks[name] = Landmark(
                 x=int(x_norm * w),
                 y=int(y_norm * h),
-                visibility=float(confidence),
+                visibility=float(confidence),  # Use raw confidence
                 name=name
             )
         

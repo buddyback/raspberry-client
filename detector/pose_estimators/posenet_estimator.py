@@ -72,6 +72,21 @@ class PoseNetPoseEstimator(PoseEstimator):
     def supported_landmarks(self) -> List[str]:
         return POSENET_KEYPOINTS.copy()
     
+    @property
+    def visibility_thresholds(self) -> dict:
+        """
+        PoseNet-specific visibility thresholds.
+        
+        PoseNet outputs lower confidence values than MediaPipe. These thresholds
+        are calibrated for PoseNet's native output range.
+        """
+        return {
+            "ear": 0.30,
+            "hip": 0.20,
+            "shoulder": 0.25,
+        }
+    
+
     def _download_model(self) -> str:
         """Download the default PoseNet model if not available locally."""
         import os
@@ -96,6 +111,10 @@ class PoseNetPoseEstimator(PoseEstimator):
             return
         
         try:
+            # Force CPU-only mode to avoid GPU compatibility issues
+            import os
+            os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+            
             # Use TensorFlow Lite for inference
             import tensorflow as tf
             
@@ -103,7 +122,7 @@ class PoseNetPoseEstimator(PoseEstimator):
             if self._model_path is None:
                 self._model_path = self._download_model()
             
-            print(f"[PoseNet] Loading model from {self._model_path}...")
+            print(f"[PoseNet] Loading model from {self._model_path}... (CPU mode)")
             
             # Create interpreter
             self._interpreter = tf.lite.Interpreter(model_path=self._model_path)
@@ -262,7 +281,7 @@ class PoseNetPoseEstimator(PoseEstimator):
             landmarks[name] = Landmark(
                 x=int(x),
                 y=int(y),
-                visibility=confidence,
+                visibility=confidence,  # Use raw confidence
                 name=name
             )
         

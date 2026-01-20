@@ -94,6 +94,21 @@ class HULKPoseEstimator(PoseEstimator):
     def supported_landmarks(self) -> List[str]:
         return HULK_KEYPOINTS.copy()
     
+    @property
+    def visibility_thresholds(self) -> dict:
+        """
+        HULK-specific visibility thresholds.
+        
+        HULK outputs confidence values in a similar range to MoveNet/PoseNet.
+        These thresholds are calibrated for HULK's native output range.
+        """
+        return {
+            "ear": 0.30,
+            "hip": 0.20,
+            "shoulder": 0.25,
+        }
+    
+
     def _get_device(self) -> str:
         """Determine the best device to use."""
         if self._device_preference != "auto":
@@ -313,7 +328,7 @@ class HULKPoseEstimator(PoseEstimator):
             landmarks[name] = Landmark(
                 x=int(np.clip(x_norm * w, 0, w - 1)),
                 y=int(np.clip(y_norm * h, 0, h - 1)),
-                visibility=float(confidences[idx]),
+                visibility=float(confidences[idx]),  # Use raw confidence
                 name=name
             )
         

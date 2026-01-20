@@ -57,11 +57,32 @@ class PostureAnalyzer:
         Returns:
             Integer: Angle in degrees
         """
-        if y1 == y2:  # Avoid division by zero
+        # Avoid division by zero - check for equal y coordinates
+        if y1 == y2:
             return 90
-
+        
+        # Avoid division by zero - check for y1 being zero
+        if y1 == 0:
+            return 0
+        
+        # Calculate denominator and check for zero
+        dx = x2 - x1
+        dy = y2 - y1
+        denominator = math.sqrt(dx ** 2 + dy ** 2) * y1
+        
+        # Avoid division by zero in denominator
+        if abs(denominator) < 1e-10:
+            return 0
+        
         # Calculate the angle with respect to vertical
-        theta = math.acos((y2 - y1) * (-y1) / (math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) * y1))
+        # Clamp the value to [-1, 1] to avoid math domain error in acos
+        cos_value = (dy * (-y1)) / denominator
+        cos_value = max(-1.0, min(1.0, cos_value))
+        
+        try:
+            theta = math.acos(cos_value)
+        except ValueError:
+            return 0
 
         if x2 < x1:
             theta = -theta
@@ -93,10 +114,13 @@ class PostureAnalyzer:
             x0, y0 = sorted_points[i - 1]
             x1, y1 = sorted_points[i]
             if x0 <= x <= x1:
+                # Avoid division by zero
+                if abs(x1 - x0) < 1e-10:
+                    return y0
                 t = (x - x0) / (x1 - x0)
                 return y0 + t * (y1 - y0)
 
-    def analyze_posture(self, landmarks, sensitivity=-1):
+    def analyze_posture(self, landmarks, sensitivity=-1, visibility_thresholds=None):
         """
         Analyze posture based on the landmarks
 
@@ -152,16 +176,31 @@ class PostureAnalyzer:
 
         results["webcam_position"] = self.webcam_position
 
+        # Use provided thresholds or defaults (calibrated for MediaPipe)
+        if visibility_thresholds is None:
+            visibility_thresholds = {
+                "ear": 0.90,
+                "hip": 0.75,
+                "shoulder": 0.80,
+            }
+
         results["webcam_placement"] = "good"
-        if (results["webcam_position"] == "right" and r_ear_vis < 0.90) or (
-            results["webcam_position"] == "left" and l_ear_vis < 0.90
+        ear_threshold = visibility_thresholds.get("ear", 0.90)
+        # When webcam is on user's RIGHT, the user is facing LEFT, so LEFT ear is visible
+        # When webcam is on user's LEFT, the user is facing RIGHT, so RIGHT ear is visible
+        if (results["webcam_position"] == "right" and l_ear_vis < ear_threshold) or (
+            results["webcam_position"] == "left" and r_ear_vis < ear_threshold
         ):
             results["webcam_placement"] = "ear"
 
-        if max(l_hip_vis, r_hip_vis) < 0.75:
+        hip_threshold = visibility_thresholds.get("hip", 0.75)
+        if max(l_hip_vis, r_hip_vis) < hip_threshold:
             results["webcam_placement"] = "hip"
 
-        if min(l_shoulder_vis, r_shoulder_vis) < 0.93:
+        # For side-positioned cameras, only one shoulder needs to be visible
+        # Changed from min() to max() since the opposite shoulder will be occluded
+        shoulder_threshold = visibility_thresholds.get("shoulder", 0.80)
+        if max(l_shoulder_vis, r_shoulder_vis) < shoulder_threshold:
             results["webcam_placement"] = "shoulder"
 
         if self.webcam_placement != results["webcam_placement"]:

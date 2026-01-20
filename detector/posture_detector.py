@@ -292,8 +292,10 @@ class PostureDetector(QObject):
         draw_landmarks(frame, landmarks)
 
         sensitivity = self.settings.get("sensitivity", -1)
+        # Get visibility thresholds from the pose estimator (model-specific)
+        visibility_thresholds = self.pose_estimator.visibility_thresholds
         # Analyze posture
-        analysis_results = self.analyzer.analyze_posture(landmarks, sensitivity)
+        analysis_results = self.analyzer.analyze_posture(landmarks, sensitivity, visibility_thresholds)
 
         self._update_history(analysis_results)
         self._maybe_send_posture(analysis_results)

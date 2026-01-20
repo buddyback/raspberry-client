@@ -35,7 +35,9 @@ class EstimatorType(Enum):
     MOVENET_LIGHTNING = "movenet_lightning"
     MOVENET_THUNDER = "movenet_thunder"
     POSENET = "posenet"
-    HULK = "hulk"  # Coming soon
+    HULK = "hulk"
+    OPENPOSE = "openpose"
+    ONNX_LIGHTWEIGHT = "onnx_lightweight"
 
 
 def create_estimator(
@@ -92,6 +94,14 @@ def create_estimator(
         from .hulk_estimator import HULKPoseEstimator
         return HULKPoseEstimator(**kwargs)
     
+    elif estimator_type == EstimatorType.OPENPOSE:
+        from .openpose_estimator import OpenPosePoseEstimator
+        return OpenPosePoseEstimator(**kwargs)
+    
+    elif estimator_type == EstimatorType.ONNX_LIGHTWEIGHT:
+        from .onnx_lightweight_estimator import ONNXLightweightPoseEstimator
+        return ONNXLightweightPoseEstimator(**kwargs)
+    
     else:
         raise ValueError(f"Unknown estimator type: {estimator_type}")
 
@@ -109,6 +119,8 @@ def list_available_estimators() -> list:
         ("movenet_thunder", "MoveNet Thunder - 17 landmarks, accurate, requires TensorFlow"),
         ("posenet", "PoseNet - 17 landmarks, TFLite, requires TensorFlow"),
         ("hulk", "HULK - 17 landmarks, ViT-based, requires PyTorch + timm (heavy, PC only)"),
+        ("openpose", "OpenPose - 18 landmarks, Lightweight ONNX, requires onnxruntime"),
+        ("onnx_lightweight", "ONNX Lightweight - 17 landmarks, ultra-fast, optimized for edge devices"),
     ]
 
 

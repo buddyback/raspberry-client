@@ -55,7 +55,7 @@ def parse_arguments():
         "--estimator",
         type=str,
         default="mediapipe",
-        choices=["mediapipe", "movenet_lightning", "movenet_thunder", "posenet", "hulk"],
+        choices=["mediapipe", "movenet_lightning", "movenet_thunder", "posenet", "hulk", "openpose", "onnx_lightweight"],
         help="Pose estimation model to use (default: mediapipe)",
     )
     parser.add_argument(

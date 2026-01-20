@@ -109,6 +109,25 @@ class PoseEstimator(ABC):
         """Return list of landmark names this estimator can detect."""
         pass
     
+    @property
+    def visibility_thresholds(self) -> Dict[str, float]:
+        """
+        Return model-specific visibility thresholds for webcam placement detection.
+        
+        These thresholds are optimized for each model since different models
+        output confidence values in different ranges. MediaPipe outputs 0.9-1.0
+        for visible keypoints, while MoveNet/PoseNet typically output 0.3-0.6.
+        
+        Returns:
+            Dictionary with thresholds for 'ear', 'hip', and 'shoulder' detection.
+            Default values are calibrated for MediaPipe.
+        """
+        return {
+            "ear": 0.90,
+            "hip": 0.75,
+            "shoulder": 0.80,
+        }
+    
     @abstractmethod
     def initialize(self) -> None:
         """
