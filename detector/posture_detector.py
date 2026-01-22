@@ -3,6 +3,7 @@ Main posture detection module that integrates camera capture and posture analysi
 """
 
 import asyncio
+import concurrent.futures
 import multiprocessing
 import os
 import signal
@@ -96,6 +97,10 @@ class PostureDetector(QObject):
 
         if os.getenv("DISABLE_VIBRATION", False).lower() not in ["true", "1", "yes"]:
             self.gpio_client = PigpioClient()
+
+        # Thread pool for running blocking operations (like TensorFlow inference)
+        # This prevents blocking the asyncio event loop on slower devices like Raspberry Pi
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
     def _update_history(self, analysis_results):
         if analysis_results["webcam_placement"] != "good":
@@ -270,7 +275,14 @@ class PostureDetector(QObject):
         thickness = max(1, int(w / 640))
 
         # Process the image with the pose estimator
-        pose_result = self.pose_estimator.process(frame)
+        # Run in executor to avoid blocking the asyncio event loop
+        # This is critical for slow models (like TensorFlow on Raspberry Pi) to prevent WebSocket timeouts
+        loop = asyncio.get_event_loop()
+        pose_result = await loop.run_in_executor(
+            self._executor, 
+            self.pose_estimator.process, 
+            frame
+        )
         
         if not pose_result.success:
             webcam_placement_text = "Person is not visible"

@@ -1,8 +1,8 @@
 """
-MoveNet Pose Estimator implementation.
+MoveNet Pose Estimator implementation using TensorFlow Lite.
 
-This module wraps Google's MoveNet model from TensorFlow Hub to conform to the
-PoseEstimator interface. MoveNet is optimized for real-time pose estimation.
+This module wraps Google's MoveNet model using TensorFlow Lite for efficient
+inference on edge devices like Raspberry Pi.
 
 Two variants are available:
 - Lightning: Faster, optimized for latency-critical applications
@@ -41,18 +41,21 @@ MOVENET_KEYPOINTS = [
 
 class MoveNetPoseEstimator(PoseEstimator):
     """
-    Pose estimator using Google MoveNet from TensorFlow Hub.
+    Pose estimator using Google MoveNet via TensorFlow Lite.
     
     MoveNet is an ultra-fast and accurate pose detection model that detects
-    17 keypoints of a body. It's specifically designed for real-time applications.
+    17 keypoints of a body. This implementation uses TensorFlow Lite for 
+    efficient inference on edge devices like Raspberry Pi.
     
     Args:
         variant: Model variant - 'lightning' (faster) or 'thunder' (more accurate)
+        model_path: Optional path to a custom TFLite model file
     """
     
+    # TFLite model URLs (official Google models)
     MODEL_URLS = {
-        "lightning": "https://tfhub.dev/google/movenet/singlepose/lightning/4",
-        "thunder": "https://tfhub.dev/google/movenet/singlepose/thunder/4",
+        "lightning": "https://tfhub.dev/google/lite-model/movenet/singlepose/lightning/tflite/int8/4?lite-format=tflite",
+        "thunder": "https://tfhub.dev/google/lite-model/movenet/singlepose/thunder/tflite/int8/4?lite-format=tflite",
     }
     
     INPUT_SIZES = {
@@ -63,6 +66,7 @@ class MoveNetPoseEstimator(PoseEstimator):
     def __init__(
         self,
         variant: Literal["lightning", "thunder"] = "lightning",
+        model_path: str = None,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -70,10 +74,11 @@ class MoveNetPoseEstimator(PoseEstimator):
         if self._variant not in self.MODEL_URLS:
             raise ValueError(f"Invalid variant '{variant}'. Must be 'lightning' or 'thunder'")
         
-        self._model = None
+        self._model_path = model_path
         self._input_size = self.INPUT_SIZES[self._variant]
-        self._tf = None  # TensorFlow module (lazy import)
-        self._hub = None  # TensorFlow Hub module (lazy import)
+        self._interpreter = None
+        self._input_details = None
+        self._output_details = None
     
     @property
     def name(self) -> str:
@@ -98,44 +103,77 @@ class MoveNetPoseEstimator(PoseEstimator):
             "shoulder": 0.15,
         }
     
+    def _download_model(self) -> str:
+        """Download the MoveNet TFLite model if not available locally."""
+        import os
+        import urllib.request
+        
+        cache_dir = os.path.expanduser("~/.cache/pose_estimators")
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        model_filename = f"movenet_{self._variant}.tflite"
+        model_path = os.path.join(cache_dir, model_filename)
+        
+        if not os.path.exists(model_path):
+            print(f"[MoveNet] Downloading {self._variant} model to {model_path}...")
+            try:
+                urllib.request.urlretrieve(self.MODEL_URLS[self._variant], model_path)
+                print("[MoveNet] Download complete")
+            except Exception as e:
+                # Fallback: try alternative URL format
+                alt_urls = {
+                    "lightning": "https://storage.googleapis.com/movenet/models/movenet_singlepose_lightning_int8_4.tflite",
+                    "thunder": "https://storage.googleapis.com/movenet/models/movenet_singlepose_thunder_int8_4.tflite",
+                }
+                print(f"[MoveNet] Primary download failed, trying alternative URL...")
+                urllib.request.urlretrieve(alt_urls[self._variant], model_path)
+                print("[MoveNet] Download complete (alternative URL)")
+        
+        return model_path
+    
     def initialize(self) -> None:
-        """Initialize the MoveNet model from TensorFlow Hub."""
+        """Initialize the MoveNet TFLite interpreter."""
         if self._initialized:
             return
         
         try:
-            # Force CPU-only mode to avoid GPU compatibility issues
-            # This is especially important for Raspberry Pi (no GPU) and
-            # newer GPUs that may not have compatible CUDA kernels
+            # Force CPU-only mode
             import os
             os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
             
-            # Lazy import TensorFlow to avoid loading it if not needed
+            # Use TensorFlow Lite for inference
             import tensorflow as tf
-            import tensorflow_hub as hub
             
-            self._tf = tf
-            self._hub = hub
+            # Get model path
+            if self._model_path is None:
+                self._model_path = self._download_model()
             
-            print(f"[MoveNet] Loading model: {self._variant}... (CPU mode)")
-            model_url = self.MODEL_URLS[self._variant]
+            print(f"[MoveNet] Loading model from {self._model_path}... (CPU mode, TFLite)")
             
-            # Load the model from TensorFlow Hub
-            self._model = hub.load(model_url)
-            self._movenet = self._model.signatures['serving_default']
+            # Create interpreter
+            self._interpreter = tf.lite.Interpreter(model_path=self._model_path)
+            self._interpreter.allocate_tensors()
+            
+            # Get input and output details
+            self._input_details = self._interpreter.get_input_details()
+            self._output_details = self._interpreter.get_output_details()
+            
+            # Update input size based on model
+            input_shape = self._input_details[0]['shape']
+            self._input_size = input_shape[1]  # Assuming square input
             
             self._initialized = True
-            print(f"[MoveNet] Initialized {self._variant} (input size: {self._input_size}x{self._input_size})")
+            print(f"[MoveNet] Initialized {self._variant} (input size: {self._input_size}x{self._input_size}, TFLite)")
             
         except ImportError as e:
             raise RuntimeError(
-                "TensorFlow and tensorflow-hub are required for MoveNet. "
-                "Install with: pip install tensorflow tensorflow-hub"
+                "TensorFlow is required for MoveNet. "
+                "Install with: pip install tensorflow"
             ) from e
         except Exception as e:
             raise RuntimeError(f"Failed to initialize MoveNet: {e}")
     
-    def _preprocess_frame(self, frame: np.ndarray) -> "tf.Tensor":
+    def _preprocess_frame(self, frame: np.ndarray) -> np.ndarray:
         """
         Preprocess frame for MoveNet input.
         
@@ -143,7 +181,7 @@ class MoveNetPoseEstimator(PoseEstimator):
             frame: BGR image (OpenCV format)
         
         Returns:
-            Preprocessed tensor ready for model input
+            Preprocessed numpy array ready for model input
         """
         # Convert BGR to RGB
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -151,15 +189,19 @@ class MoveNetPoseEstimator(PoseEstimator):
         # Resize to model input size
         resized = cv2.resize(rgb_frame, (self._input_size, self._input_size))
         
-        # Convert to tensor and add batch dimension
-        input_tensor = self._tf.cast(resized, dtype=self._tf.int32)
-        input_tensor = self._tf.expand_dims(input_tensor, axis=0)
+        # Add batch dimension and convert to appropriate dtype
+        input_dtype = self._input_details[0]['dtype']
+        if input_dtype == np.uint8:
+            input_data = np.expand_dims(resized.astype(np.uint8), axis=0)
+        else:
+            # For float models, normalize to [0, 1]
+            input_data = np.expand_dims(resized.astype(np.float32) / 255.0, axis=0)
         
-        return input_tensor
+        return input_data
     
     def process(self, frame: np.ndarray) -> PoseResult:
         """
-        Process a frame using MoveNet.
+        Process a frame using MoveNet TFLite.
         
         Args:
             frame: BGR image (OpenCV format)
@@ -174,14 +216,26 @@ class MoveNetPoseEstimator(PoseEstimator):
         h, w = frame.shape[:2]
         
         # Preprocess the frame
-        input_tensor = self._preprocess_frame(frame)
+        input_data = self._preprocess_frame(frame)
+        
+        # Set input tensor
+        self._interpreter.set_tensor(self._input_details[0]['index'], input_data)
         
         # Run inference
-        outputs = self._movenet(input_tensor)
+        self._interpreter.invoke()
         
-        # Extract keypoints
+        # Get output tensor
         # Output shape: [1, 1, 17, 3] - (batch, person, keypoints, [y, x, confidence])
-        keypoints = outputs['output_0'].numpy()[0, 0, :, :]
+        keypoints = self._interpreter.get_tensor(self._output_details[0]['index'])
+        keypoints = np.squeeze(keypoints)  # Remove batch dimension
+        
+        # Handle different output shapes
+        if keypoints.ndim == 2:
+            # Shape is [17, 3]
+            pass
+        elif keypoints.ndim == 3:
+            # Shape is [1, 17, 3]
+            keypoints = keypoints[0]
         
         # Check if any keypoints were detected with reasonable confidence
         max_confidence = keypoints[:, 2].max()
@@ -200,7 +254,7 @@ class MoveNetPoseEstimator(PoseEstimator):
             landmarks[name] = Landmark(
                 x=int(x_norm * w),
                 y=int(y_norm * h),
-                visibility=float(confidence),  # Use raw confidence
+                visibility=float(confidence),
                 name=name
             )
         
@@ -213,15 +267,8 @@ class MoveNetPoseEstimator(PoseEstimator):
     
     def cleanup(self) -> None:
         """Release MoveNet resources."""
-        self._model = None
-        self._movenet = None
+        self._interpreter = None
+        self._input_details = None
+        self._output_details = None
         self._initialized = False
-        
-        # Clear TensorFlow session if possible
-        if self._tf is not None:
-            try:
-                self._tf.keras.backend.clear_session()
-            except Exception:
-                pass
-        
         print(f"[MoveNet] Cleaned up resources")
