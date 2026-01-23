@@ -1,19 +1,19 @@
 """
-OpenPose Pose Estimator implementation using Lightweight OpenPose ONNX.
+OpenPose Pose Estimator implementation using Lightweight OpenPose PyTorch.
 
-This module wraps the Lightweight OpenPose model (ONNX format) for efficient
-pose estimation without heavy dependencies like Caffe.
+This module wraps the Lightweight OpenPose model (PyTorch format) for efficient
+pose estimation.
 
 Lightweight OpenPose is based on:
 - Paper: "Real-time 2D Multi-Person Pose Estimation on CPU: Lightweight OpenPose"
 - GitHub: https://github.com/Daniil-Osokin/lightweight-human-pose-estimation.pytorch
 
 Requirements:
-    - onnxruntime (pip install onnxruntime)
+    - torch (pip install torch)
 """
 
 import os
-import urllib.request
+import sys
 from typing import List
 
 import cv2
@@ -69,39 +69,41 @@ OPENPOSE_TO_STANDARD = {
 
 class OpenPosePoseEstimator(PoseEstimator):
     """
-    Pose estimator using Lightweight OpenPose via ONNX Runtime.
+    Pose estimator using Lightweight OpenPose via PyTorch.
     
     This implementation uses the Lightweight OpenPose model which is optimized
     for real-time inference on CPU. It detects 18 body keypoints.
     
     Args:
-        model_path: Path to custom ONNX model (optional, will download if not provided)
-        input_height: Input height for the model (default: 256)
-        input_width: Input width for the model (default: 456)
+        checkpoint_path: Path to custom checkpoint file (optional, defaults to local checkpoint)
+        height_size: Input height for the model (default: 256)
+        use_cpu: Force CPU usage even if CUDA is available (default: True)
     """
     
-    # Lightweight OpenPose ONNX model URL from PINTO's model zoo
-    # Original URL is no longer available, using alternative
-    MODEL_URL = "https://github.com/PINTO0309/PINTO_model_zoo/raw/main/084_LightWeight_OpenPose/model_float32.onnx"
+    # Default checkpoint path relative to project root
+    DEFAULT_CHECKPOINT = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "openpose", "checkpoint", "checkpoint_iter_370000.pth"
+    )
     
     def __init__(
         self,
-        model_path: str = None,
-        input_height: int = 256,
-        input_width: int = 456,
+        checkpoint_path: str = None,
+        height_size: int = 256,
+        use_cpu: bool = True,
         **kwargs
     ):
         super().__init__(**kwargs)
-        self._model_path = model_path
-        self._input_height = input_height
-        self._input_width = input_width
-        self._session = None
-        self._input_name = None
-        self._output_names = None
+        self._checkpoint_path = checkpoint_path or self.DEFAULT_CHECKPOINT
+        self._height_size = height_size
+        self._use_cpu = use_cpu
+        self._net = None
+        self._stride = 8
+        self._upsample_ratio = 4
     
     @property
     def name(self) -> str:
-        return "OpenPose (Lightweight ONNX)"
+        return "OpenPose (Lightweight PyTorch)"
     
     @property
     def supported_landmarks(self) -> List[str]:
@@ -121,131 +123,200 @@ class OpenPosePoseEstimator(PoseEstimator):
             "shoulder": 0.20,
         }
     
-
-    def _download_model(self) -> str:
-        """Download the Lightweight OpenPose ONNX model if not available."""
-        cache_dir = os.path.expanduser("~/.cache/pose_estimators/openpose")
-        os.makedirs(cache_dir, exist_ok=True)
-        
-        model_path = os.path.join(cache_dir, "lightweight_openpose.onnx")
-        
-        if not os.path.exists(model_path):
-            print(f"[OpenPose] Downloading model to {model_path}...")
-            urllib.request.urlretrieve(self.MODEL_URL, model_path)
-            print("[OpenPose] Download complete")
-        
-        return model_path
+    def _add_openpose_to_path(self):
+        """Add the openpose directory to Python path for imports."""
+        openpose_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "openpose"
+        )
+        if openpose_dir not in sys.path:
+            sys.path.insert(0, openpose_dir)
     
     def initialize(self) -> None:
-        """Initialize the OpenPose ONNX model."""
+        """Initialize the OpenPose PyTorch model."""
         if self._initialized:
             return
         
         try:
-            import onnxruntime as ort
+            import torch
             
-            # Get model path
-            if self._model_path is None:
-                self._model_path = self._download_model()
+            # Add openpose directory to path for imports
+            self._add_openpose_to_path()
             
-            print(f"[OpenPose] Loading model from {self._model_path}...")
+            from models.with_mobilenet import PoseEstimationWithMobileNet
+            from modules.load_state import load_state
             
-            # Create ONNX Runtime session
-            # Use CPU provider by default, GPU if available
-            providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
-            available_providers = ort.get_available_providers()
-            providers = [p for p in providers if p in available_providers]
+            # Check if checkpoint exists
+            if not os.path.exists(self._checkpoint_path):
+                raise FileNotFoundError(
+                    f"OpenPose checkpoint not found at {self._checkpoint_path}. "
+                    "Please ensure the checkpoint file exists."
+                )
             
-            self._session = ort.InferenceSession(self._model_path, providers=providers)
+            print(f"[OpenPose] Loading model from {self._checkpoint_path}...")
             
-            # Get input/output names
-            self._input_name = self._session.get_inputs()[0].name
-            self._output_names = [o.name for o in self._session.get_outputs()]
+            # Create and load model
+            self._net = PoseEstimationWithMobileNet()
+            checkpoint = torch.load(self._checkpoint_path, map_location='cpu')
+            load_state(self._net, checkpoint)
+            
+            # Set to evaluation mode
+            self._net = self._net.eval()
+            
+            # Move to appropriate device
+            if not self._use_cpu and torch.cuda.is_available():
+                self._net = self._net.cuda()
+                self._device = 'cuda'
+                print("[OpenPose] Using CUDA")
+            else:
+                self._device = 'cpu'
+                print("[OpenPose] Using CPU")
             
             self._initialized = True
-            print(f"[OpenPose] Initialized with providers: {providers}")
+            print(f"[OpenPose] Initialized successfully")
             
         except ImportError as e:
             raise RuntimeError(
-                "onnxruntime is required for OpenPose. "
-                "Install with: pip install onnxruntime"
+                "PyTorch is required for OpenPose. "
+                "Install with: pip install torch"
             ) from e
         except Exception as e:
             raise RuntimeError(f"Failed to initialize OpenPose: {e}")
     
-    def _preprocess_frame(self, frame: np.ndarray) -> np.ndarray:
-        """
-        Preprocess frame for OpenPose input.
-        
-        Args:
-            frame: BGR image (OpenCV format)
-        
-        Returns:
-            Preprocessed numpy array ready for model input
-        """
-        # Convert BGR to RGB
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        
-        # Resize to model input size
-        resized = cv2.resize(rgb_frame, (self._input_width, self._input_height))
-        
-        # Normalize to [0, 1]
-        normalized = resized.astype(np.float32) / 255.0
-        
-        # Normalize with ImageNet mean/std
-        mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-        std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
-        normalized = (normalized - mean) / std
-        
-        # Transpose to CHW format and add batch dimension
-        input_tensor = normalized.transpose(2, 0, 1)
-        input_tensor = np.expand_dims(input_tensor, axis=0)
-        
-        return input_tensor.astype(np.float32)
+    def _normalize(self, img, img_mean, img_scale):
+        """Normalize image for network input."""
+        img = np.array(img, dtype=np.float32)
+        img = (img - img_mean) * img_scale
+        return img
     
-    def _extract_keypoints_from_heatmaps(
-        self, 
-        heatmaps: np.ndarray, 
-        frame_height: int, 
-        frame_width: int
-    ) -> dict:
+    def _pad_width(self, img, stride, pad_value, min_dims):
+        """Pad image to be divisible by stride."""
+        import math
+        h, w, _ = img.shape
+        h = min(min_dims[0], h)
+        min_dims[0] = math.ceil(min_dims[0] / float(stride)) * stride
+        min_dims[1] = max(min_dims[1], w)
+        min_dims[1] = math.ceil(min_dims[1] / float(stride)) * stride
+        pad = []
+        pad.append(int(math.floor((min_dims[0] - h) / 2.0)))
+        pad.append(int(math.floor((min_dims[1] - w) / 2.0)))
+        pad.append(int(min_dims[0] - h - pad[0]))
+        pad.append(int(min_dims[1] - w - pad[1]))
+        padded_img = cv2.copyMakeBorder(img, pad[0], pad[2], pad[1], pad[3],
+                                        cv2.BORDER_CONSTANT, value=pad_value)
+        return padded_img, pad
+    
+    def _infer_fast(self, img, net_input_height_size):
         """
-        Extract keypoints from heatmaps.
+        Run fast inference on a single image.
         
-        Args:
-            heatmaps: Heatmap output from model [1, num_keypoints, h, w]
-            frame_height: Original frame height
-            frame_width: Original frame width
-        
-        Returns:
-            Dictionary of landmarks
+        Based on the demo.py implementation.
         """
-        landmarks = {}
+        import torch
         
-        # Remove batch dimension
-        heatmaps = np.squeeze(heatmaps)
+        height, width, _ = img.shape
+        scale = net_input_height_size / height
         
-        num_keypoints = min(len(OPENPOSE_KEYPOINTS), heatmaps.shape[0])
-        heatmap_height, heatmap_width = heatmaps.shape[1:3]
+        scaled_img = cv2.resize(img, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
         
-        for idx in range(num_keypoints):
-            heatmap = heatmaps[idx]
-            
-            # Find the position of maximum confidence
-            max_pos = np.unravel_index(np.argmax(heatmap), heatmap.shape)
-            confidence = float(heatmap[max_pos])
-            
-            # Scale coordinates to original frame size
-            x = int(max_pos[1] * frame_width / heatmap_width)
-            y = int(max_pos[0] * frame_height / heatmap_height)
-            
-            name = OPENPOSE_KEYPOINTS[idx]
-            landmarks[name] = Landmark(
-                x=x,
-                y=y,
-                visibility=confidence,  # Use raw confidence
-                name=name
+        img_mean = np.array([128, 128, 128], np.float32)
+        img_scale = np.float32(1/256)
+        scaled_img = self._normalize(scaled_img, img_mean, img_scale)
+        
+        min_dims = [net_input_height_size, max(scaled_img.shape[1], net_input_height_size)]
+        padded_img, pad = self._pad_width(scaled_img, self._stride, (0, 0, 0), min_dims)
+        
+        tensor_img = torch.from_numpy(padded_img).permute(2, 0, 1).unsqueeze(0).float()
+        if self._device == 'cuda':
+            tensor_img = tensor_img.cuda()
+        
+        with torch.no_grad():
+            stages_output = self._net(tensor_img)
+        
+        stage2_heatmaps = stages_output[-2]
+        heatmaps = np.transpose(stage2_heatmaps.squeeze().cpu().data.numpy(), (1, 2, 0))
+        heatmaps = cv2.resize(heatmaps, (0, 0), fx=self._upsample_ratio, fy=self._upsample_ratio, 
+                              interpolation=cv2.INTER_CUBIC)
+        
+        stage2_pafs = stages_output[-1]
+        pafs = np.transpose(stage2_pafs.squeeze().cpu().data.numpy(), (1, 2, 0))
+        pafs = cv2.resize(pafs, (0, 0), fx=self._upsample_ratio, fy=self._upsample_ratio, 
+                          interpolation=cv2.INTER_CUBIC)
+        
+        return heatmaps, pafs, scale, pad
+    
+    def _extract_keypoints_and_poses(self, heatmaps, pafs, scale, pad, frame_height, frame_width):
+        """
+        Extract keypoints and group them into poses.
+        
+        Returns landmarks for the primary (most confident) detected pose.
+        """
+        # Import modules from openpose directory
+        from modules.keypoints import extract_keypoints, group_keypoints
+        from modules.pose import Pose
+        
+        num_keypoints = Pose.num_kpts  # 18
+        
+        total_keypoints_num = 0
+        all_keypoints_by_type = []
+        for kpt_idx in range(num_keypoints):
+            total_keypoints_num += extract_keypoints(
+                heatmaps[:, :, kpt_idx], all_keypoints_by_type, total_keypoints_num
             )
+        
+        pose_entries, all_keypoints = group_keypoints(all_keypoints_by_type, pafs)
+        
+        # Transform keypoints back to original frame coordinates
+        for kpt_id in range(all_keypoints.shape[0]):
+            all_keypoints[kpt_id, 0] = (all_keypoints[kpt_id, 0] * self._stride / self._upsample_ratio - pad[1]) / scale
+            all_keypoints[kpt_id, 1] = (all_keypoints[kpt_id, 1] * self._stride / self._upsample_ratio - pad[0]) / scale
+        
+        if len(pose_entries) == 0:
+            return {}
+        
+        # Get the most confident pose
+        best_pose_idx = 0
+        best_confidence = 0
+        for n in range(len(pose_entries)):
+            if len(pose_entries[n]) == 0:
+                continue
+            confidence = pose_entries[n][18]  # Score is at index 18
+            if confidence > best_confidence:
+                best_confidence = confidence
+                best_pose_idx = n
+        
+        pose_entry = pose_entries[best_pose_idx]
+        
+        # Extract landmarks from the best pose
+        landmarks = {}
+        for kpt_idx in range(num_keypoints):
+            kpt_id = pose_entry[kpt_idx]
+            if kpt_id == -1.0:
+                # Keypoint not found - add with 0 confidence
+                name = OPENPOSE_KEYPOINTS[kpt_idx]
+                landmarks[name] = Landmark(
+                    x=0,
+                    y=0,
+                    visibility=0.0,
+                    name=name
+                )
+            else:
+                kpt_id = int(kpt_id)
+                x = int(all_keypoints[kpt_id, 0])
+                y = int(all_keypoints[kpt_id, 1])
+                confidence = float(all_keypoints[kpt_id, 2])
+                
+                # Clamp coordinates to frame bounds
+                x = max(0, min(x, frame_width - 1))
+                y = max(0, min(y, frame_height - 1))
+                
+                name = OPENPOSE_KEYPOINTS[kpt_idx]
+                landmarks[name] = Landmark(
+                    x=x,
+                    y=y,
+                    visibility=confidence,
+                    name=name
+                )
         
         return landmarks
     
@@ -265,45 +336,40 @@ class OpenPosePoseEstimator(PoseEstimator):
         # Get frame dimensions
         h, w = frame.shape[:2]
         
-        # Preprocess the frame
-        input_tensor = self._preprocess_frame(frame)
-        
         # Run inference
-        outputs = self._session.run(self._output_names, {self._input_name: input_tensor})
-        
-        # First output is heatmaps
-        heatmaps = outputs[0]
+        heatmaps, pafs, scale, pad = self._infer_fast(frame, self._height_size)
         
         # Extract keypoints
-        landmarks = self._extract_keypoints_from_heatmaps(heatmaps, h, w)
+        landmarks = self._extract_keypoints_and_poses(heatmaps, pafs, scale, pad, h, w)
         
         # Check if any keypoints were detected with reasonable confidence
         if not landmarks:
             return PoseResult(
                 landmarks={},
-                raw_output=outputs,
+                raw_output=(heatmaps, pafs),
                 success=False,
                 error_message="No pose detected"
             )
         
-        max_confidence = max(lm.visibility for lm in landmarks.values())
-        if max_confidence < 0.3:
+        # Check if we have enough confident keypoints
+        confident_keypoints = sum(1 for lm in landmarks.values() if lm.visibility > 0.3)
+        if confident_keypoints < 3:
             return PoseResult(
                 landmarks={},
-                raw_output=outputs,
+                raw_output=(heatmaps, pafs),
                 success=False,
                 error_message="No pose detected with sufficient confidence"
             )
         
         return PoseResult(
             landmarks=landmarks,
-            raw_output=outputs,
+            raw_output=(heatmaps, pafs),
             success=True,
             error_message=None
         )
     
     def cleanup(self) -> None:
         """Release OpenPose resources."""
-        self._session = None
+        self._net = None
         self._initialized = False
         print("[OpenPose] Cleaned up resources")

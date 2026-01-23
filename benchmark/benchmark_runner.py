@@ -33,9 +33,7 @@ AVAILABLE_ESTIMATORS = [
     "movenet_lightning",
     "movenet_thunder",
     "posenet",
-    "hulk",
     "openpose",
-    "onnx_lightweight",
 ]
 
 
