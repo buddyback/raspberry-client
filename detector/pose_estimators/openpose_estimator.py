@@ -1,15 +1,17 @@
 """
-OpenPose Pose Estimator implementation using Lightweight OpenPose PyTorch.
+OpenPose Pose Estimator implementation using ONNX Runtime.
 
-This module wraps the Lightweight OpenPose model (PyTorch format) for efficient
-pose estimation.
+This module wraps the Lightweight OpenPose model (ONNX format) for efficient
+pose estimation on ARM devices like Raspberry Pi.
 
 Lightweight OpenPose is based on:
 - Paper: "Real-time 2D Multi-Person Pose Estimation on CPU: Lightweight OpenPose"
 - GitHub: https://github.com/Daniil-Osokin/lightweight-human-pose-estimation.pytorch
 
 Requirements:
-    - torch (pip install torch)
+    - onnxruntime (pip install onnxruntime)
+    
+To create the ONNX model, run export_to_onnx.py on an x86 machine with PyTorch.
 """
 
 import os
@@ -66,21 +68,36 @@ OPENPOSE_TO_STANDARD = {
     "l_ear": "l_ear",
 }
 
+# Body part connections for pose grouping
+BODY_PARTS_KPT_IDS = [
+    [1, 2], [1, 5], [2, 3], [3, 4], [5, 6], [6, 7], [1, 8], [8, 9], [9, 10], [1, 11],
+    [11, 12], [12, 13], [1, 0], [0, 14], [14, 16], [0, 15], [15, 17], [2, 16], [5, 17]
+]
+BODY_PARTS_PAF_IDS = (
+    [12, 13], [20, 21], [14, 15], [16, 17], [22, 23], [24, 25], [0, 1], [2, 3], [4, 5],
+    [6, 7], [8, 9], [10, 11], [28, 29], [30, 31], [34, 35], [32, 33], [36, 37], [18, 19], [26, 27]
+)
+
 
 class OpenPosePoseEstimator(PoseEstimator):
     """
-    Pose estimator using Lightweight OpenPose via PyTorch.
+    Pose estimator using Lightweight OpenPose via ONNX Runtime.
     
-    This implementation uses the Lightweight OpenPose model which is optimized
-    for real-time inference on CPU. It detects 18 body keypoints.
+    This implementation uses the Lightweight OpenPose model converted to ONNX
+    format for efficient inference on ARM devices like Raspberry Pi.
     
     Args:
-        checkpoint_path: Path to custom checkpoint file (optional, defaults to local checkpoint)
+        onnx_path: Path to ONNX model file (optional, defaults to local model)
         height_size: Input height for the model (default: 256)
-        use_cpu: Force CPU usage even if CUDA is available (default: True)
     """
     
-    # Default checkpoint path relative to project root
+    # Default ONNX model path relative to project root
+    DEFAULT_ONNX_PATH = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "openpose", "checkpoint", "openpose_lightweight.onnx"
+    )
+    
+    # Fallback to PyTorch checkpoint path for error messages
     DEFAULT_CHECKPOINT = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
         "openpose", "checkpoint", "checkpoint_iter_370000.pth"
@@ -88,22 +105,20 @@ class OpenPosePoseEstimator(PoseEstimator):
     
     def __init__(
         self,
-        checkpoint_path: str = None,
+        onnx_path: str = None,
         height_size: int = 256,
-        use_cpu: bool = True,
         **kwargs
     ):
         super().__init__(**kwargs)
-        self._checkpoint_path = checkpoint_path or self.DEFAULT_CHECKPOINT
+        self._onnx_path = onnx_path or self.DEFAULT_ONNX_PATH
         self._height_size = height_size
-        self._use_cpu = use_cpu
-        self._net = None
+        self._session = None
         self._stride = 8
         self._upsample_ratio = 4
     
     @property
     def name(self) -> str:
-        return "OpenPose (Lightweight PyTorch)"
+        return "OpenPose (Lightweight ONNX)"
     
     @property
     def supported_landmarks(self) -> List[str]:
@@ -123,62 +138,42 @@ class OpenPosePoseEstimator(PoseEstimator):
             "shoulder": 0.20,
         }
     
-    def _add_openpose_to_path(self):
-        """Add the openpose directory to Python path for imports."""
-        openpose_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "openpose"
-        )
-        if openpose_dir not in sys.path:
-            sys.path.insert(0, openpose_dir)
-    
     def initialize(self) -> None:
-        """Initialize the OpenPose PyTorch model."""
+        """Initialize the OpenPose ONNX Runtime session."""
         if self._initialized:
             return
         
         try:
-            import torch
+            import onnxruntime as ort
             
-            # Add openpose directory to path for imports
-            self._add_openpose_to_path()
-            
-            from models.with_mobilenet import PoseEstimationWithMobileNet
-            from modules.load_state import load_state
-            
-            # Check if checkpoint exists
-            if not os.path.exists(self._checkpoint_path):
+            # Check if ONNX model exists
+            if not os.path.exists(self._onnx_path):
                 raise FileNotFoundError(
-                    f"OpenPose checkpoint not found at {self._checkpoint_path}. "
-                    "Please ensure the checkpoint file exists."
+                    f"OpenPose ONNX model not found at {self._onnx_path}. "
+                    f"Please run 'python openpose/export_to_onnx.py' on an x86 machine "
+                    f"to convert the PyTorch model to ONNX format, then copy the "
+                    f"resulting .onnx file to the Raspberry Pi."
                 )
             
-            print(f"[OpenPose] Loading model from {self._checkpoint_path}...")
+            print(f"[OpenPose] Loading ONNX model from {self._onnx_path}...")
             
-            # Create and load model
-            self._net = PoseEstimationWithMobileNet()
-            checkpoint = torch.load(self._checkpoint_path, map_location='cpu')
-            load_state(self._net, checkpoint)
+            # Create ONNX Runtime session with CPU provider
+            self._session = ort.InferenceSession(
+                self._onnx_path,
+                providers=['CPUExecutionProvider']
+            )
             
-            # Set to evaluation mode
-            self._net = self._net.eval()
-            
-            # Move to appropriate device
-            if not self._use_cpu and torch.cuda.is_available():
-                self._net = self._net.cuda()
-                self._device = 'cuda'
-                print("[OpenPose] Using CUDA")
-            else:
-                self._device = 'cpu'
-                print("[OpenPose] Using CPU")
+            # Get input/output names
+            self._input_name = self._session.get_inputs()[0].name
+            self._output_names = [o.name for o in self._session.get_outputs()]
             
             self._initialized = True
-            print(f"[OpenPose] Initialized successfully")
+            print(f"[OpenPose] Initialized successfully (ONNX Runtime)")
             
         except ImportError as e:
             raise RuntimeError(
-                "PyTorch is required for OpenPose. "
-                "Install with: pip install torch"
+                "ONNX Runtime is required for OpenPose. "
+                "Install with: pip install onnxruntime"
             ) from e
         except Exception as e:
             raise RuntimeError(f"Failed to initialize OpenPose: {e}")
@@ -208,12 +203,8 @@ class OpenPosePoseEstimator(PoseEstimator):
     
     def _infer_fast(self, img, net_input_height_size):
         """
-        Run fast inference on a single image.
-        
-        Based on the demo.py implementation.
+        Run fast inference on a single image using ONNX Runtime.
         """
-        import torch
-        
         height, width, _ = img.shape
         scale = net_input_height_size / height
         
@@ -226,24 +217,184 @@ class OpenPosePoseEstimator(PoseEstimator):
         min_dims = [net_input_height_size, max(scaled_img.shape[1], net_input_height_size)]
         padded_img, pad = self._pad_width(scaled_img, self._stride, (0, 0, 0), min_dims)
         
-        tensor_img = torch.from_numpy(padded_img).permute(2, 0, 1).unsqueeze(0).float()
-        if self._device == 'cuda':
-            tensor_img = tensor_img.cuda()
+        # Prepare input for ONNX Runtime: (batch, channels, height, width)
+        tensor_img = padded_img.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32)
         
-        with torch.no_grad():
-            stages_output = self._net(tensor_img)
+        # Run inference
+        outputs = self._session.run(self._output_names, {self._input_name: tensor_img})
         
-        stage2_heatmaps = stages_output[-2]
-        heatmaps = np.transpose(stage2_heatmaps.squeeze().cpu().data.numpy(), (1, 2, 0))
+        # Process outputs - the model outputs heatmaps and PAFs
+        # Output order matches torch model: stage2_heatmaps, stage2_pafs (last two outputs)
+        if len(outputs) == 2:
+            stage2_heatmaps = outputs[0]
+            stage2_pafs = outputs[1]
+        else:
+            # If model has multiple stages, take the last heatmaps and pafs
+            stage2_heatmaps = outputs[-2]
+            stage2_pafs = outputs[-1]
+        
+        heatmaps = np.transpose(np.squeeze(stage2_heatmaps), (1, 2, 0))
         heatmaps = cv2.resize(heatmaps, (0, 0), fx=self._upsample_ratio, fy=self._upsample_ratio, 
                               interpolation=cv2.INTER_CUBIC)
         
-        stage2_pafs = stages_output[-1]
-        pafs = np.transpose(stage2_pafs.squeeze().cpu().data.numpy(), (1, 2, 0))
+        pafs = np.transpose(np.squeeze(stage2_pafs), (1, 2, 0))
         pafs = cv2.resize(pafs, (0, 0), fx=self._upsample_ratio, fy=self._upsample_ratio, 
                           interpolation=cv2.INTER_CUBIC)
         
         return heatmaps, pafs, scale, pad
+    
+    def _extract_keypoints(self, heatmap, all_keypoints, total_keypoint_num):
+        """Extract keypoints from a heatmap."""
+        from operator import itemgetter
+        import math
+        
+        heatmap[heatmap < 0.1] = 0
+        heatmap_with_borders = np.pad(heatmap, [(2, 2), (2, 2)], mode='constant')
+        heatmap_center = heatmap_with_borders[1:heatmap_with_borders.shape[0]-1, 1:heatmap_with_borders.shape[1]-1]
+        heatmap_left = heatmap_with_borders[1:heatmap_with_borders.shape[0]-1, 2:heatmap_with_borders.shape[1]]
+        heatmap_right = heatmap_with_borders[1:heatmap_with_borders.shape[0]-1, 0:heatmap_with_borders.shape[1]-2]
+        heatmap_up = heatmap_with_borders[2:heatmap_with_borders.shape[0], 1:heatmap_with_borders.shape[1]-1]
+        heatmap_down = heatmap_with_borders[0:heatmap_with_borders.shape[0]-2, 1:heatmap_with_borders.shape[1]-1]
+
+        heatmap_peaks = (heatmap_center > heatmap_left) &\
+                        (heatmap_center > heatmap_right) &\
+                        (heatmap_center > heatmap_up) &\
+                        (heatmap_center > heatmap_down)
+        heatmap_peaks = heatmap_peaks[1:heatmap_center.shape[0]-1, 1:heatmap_center.shape[1]-1]
+        keypoints = list(zip(np.nonzero(heatmap_peaks)[1], np.nonzero(heatmap_peaks)[0]))
+        keypoints = sorted(keypoints, key=itemgetter(0))
+
+        suppressed = np.zeros(len(keypoints), np.uint8)
+        keypoints_with_score_and_id = []
+        keypoint_num = 0
+        for i in range(len(keypoints)):
+            if suppressed[i]:
+                continue
+            for j in range(i+1, len(keypoints)):
+                if math.sqrt((keypoints[i][0] - keypoints[j][0]) ** 2 +
+                             (keypoints[i][1] - keypoints[j][1]) ** 2) < 6:
+                    suppressed[j] = 1
+            keypoint_with_score_and_id = (keypoints[i][0], keypoints[i][1], heatmap[keypoints[i][1], keypoints[i][0]],
+                                          total_keypoint_num + keypoint_num)
+            keypoints_with_score_and_id.append(keypoint_with_score_and_id)
+            keypoint_num += 1
+        all_keypoints.append(keypoints_with_score_and_id)
+        return keypoint_num
+    
+    def _connections_nms(self, a_idx, b_idx, affinity_scores):
+        """Non-maximum suppression for connections."""
+        order = affinity_scores.argsort()[::-1]
+        affinity_scores = affinity_scores[order]
+        a_idx = a_idx[order]
+        b_idx = b_idx[order]
+        idx = []
+        has_kpt_a = set()
+        has_kpt_b = set()
+        for t, (i, j) in enumerate(zip(a_idx, b_idx)):
+            if i not in has_kpt_a and j not in has_kpt_b:
+                idx.append(t)
+                has_kpt_a.add(i)
+                has_kpt_b.add(j)
+        idx = np.asarray(idx, dtype=np.int32)
+        return a_idx[idx], b_idx[idx], affinity_scores[idx]
+    
+    def _group_keypoints(self, all_keypoints_by_type, pafs, pose_entry_size=20, min_paf_score=0.05):
+        """Group keypoints into poses using PAFs."""
+        pose_entries = []
+        all_keypoints = np.array([item for sublist in all_keypoints_by_type for item in sublist])
+        points_per_limb = 10
+        grid = np.arange(points_per_limb, dtype=np.float32).reshape(1, -1, 1)
+        all_keypoints_by_type = [np.array(keypoints, np.float32) for keypoints in all_keypoints_by_type]
+        
+        for part_id in range(len(BODY_PARTS_PAF_IDS)):
+            part_pafs = pafs[:, :, BODY_PARTS_PAF_IDS[part_id]]
+            kpts_a = all_keypoints_by_type[BODY_PARTS_KPT_IDS[part_id][0]]
+            kpts_b = all_keypoints_by_type[BODY_PARTS_KPT_IDS[part_id][1]]
+            n = len(kpts_a)
+            m = len(kpts_b)
+            if n == 0 or m == 0:
+                continue
+
+            a = kpts_a[:, :2]
+            a = np.broadcast_to(a[None], (m, n, 2))
+            b = kpts_b[:, :2]
+            vec_raw = (b[:, None, :] - a).reshape(-1, 1, 2)
+
+            steps = (1 / (points_per_limb - 1) * vec_raw)
+            points = steps * grid + a.reshape(-1, 1, 2)
+            points = points.round().astype(dtype=np.int32)
+            x = points[..., 0].ravel()
+            y = points[..., 1].ravel()
+
+            # Clamp to valid range
+            x = np.clip(x, 0, pafs.shape[1] - 1)
+            y = np.clip(y, 0, pafs.shape[0] - 1)
+
+            field = part_pafs[y, x].reshape(-1, points_per_limb, 2)
+            vec_norm = np.linalg.norm(vec_raw, ord=2, axis=-1, keepdims=True)
+            vec = vec_raw / (vec_norm + 1e-6)
+            affinity_scores = (field * vec).sum(-1).reshape(-1, points_per_limb)
+            valid_affinity_scores = affinity_scores > min_paf_score
+            valid_num = valid_affinity_scores.sum(1)
+            affinity_scores = (affinity_scores * valid_affinity_scores).sum(1) / (valid_num + 1e-6)
+            success_ratio = valid_num / points_per_limb
+
+            valid_limbs = np.where(np.logical_and(affinity_scores > 0, success_ratio > 0.8))[0]
+            if len(valid_limbs) == 0:
+                continue
+            b_idx, a_idx = np.divmod(valid_limbs, n)
+            affinity_scores = affinity_scores[valid_limbs]
+
+            a_idx, b_idx, affinity_scores = self._connections_nms(a_idx, b_idx, affinity_scores)
+            connections = list(zip(kpts_a[a_idx, 3].astype(np.int32),
+                                   kpts_b[b_idx, 3].astype(np.int32),
+                                   affinity_scores))
+            if len(connections) == 0:
+                continue
+
+            if part_id == 0:
+                pose_entries = [np.ones(pose_entry_size) * -1 for _ in range(len(connections))]
+                for i in range(len(connections)):
+                    pose_entries[i][BODY_PARTS_KPT_IDS[0][0]] = connections[i][0]
+                    pose_entries[i][BODY_PARTS_KPT_IDS[0][1]] = connections[i][1]
+                    pose_entries[i][-1] = 2
+                    pose_entries[i][-2] = np.sum(all_keypoints[connections[i][0:2], 2]) + connections[i][2]
+            elif part_id == 17 or part_id == 18:
+                kpt_a_id = BODY_PARTS_KPT_IDS[part_id][0]
+                kpt_b_id = BODY_PARTS_KPT_IDS[part_id][1]
+                for i in range(len(connections)):
+                    for j in range(len(pose_entries)):
+                        if pose_entries[j][kpt_a_id] == connections[i][0] and pose_entries[j][kpt_b_id] == -1:
+                            pose_entries[j][kpt_b_id] = connections[i][1]
+                        elif pose_entries[j][kpt_b_id] == connections[i][1] and pose_entries[j][kpt_a_id] == -1:
+                            pose_entries[j][kpt_a_id] = connections[i][0]
+                continue
+            else:
+                kpt_a_id = BODY_PARTS_KPT_IDS[part_id][0]
+                kpt_b_id = BODY_PARTS_KPT_IDS[part_id][1]
+                for i in range(len(connections)):
+                    num = 0
+                    for j in range(len(pose_entries)):
+                        if pose_entries[j][kpt_a_id] == connections[i][0]:
+                            pose_entries[j][kpt_b_id] = connections[i][1]
+                            num += 1
+                            pose_entries[j][-1] += 1
+                            pose_entries[j][-2] += all_keypoints[connections[i][1], 2] + connections[i][2]
+                    if num == 0:
+                        pose_entry = np.ones(pose_entry_size) * -1
+                        pose_entry[kpt_a_id] = connections[i][0]
+                        pose_entry[kpt_b_id] = connections[i][1]
+                        pose_entry[-1] = 2
+                        pose_entry[-2] = np.sum(all_keypoints[connections[i][0:2], 2]) + connections[i][2]
+                        pose_entries.append(pose_entry)
+
+        filtered_entries = []
+        for i in range(len(pose_entries)):
+            if pose_entries[i][-1] < 3 or (pose_entries[i][-2] / pose_entries[i][-1] < 0.2):
+                continue
+            filtered_entries.append(pose_entries[i])
+        pose_entries = np.asarray(filtered_entries)
+        return pose_entries, all_keypoints
     
     def _extract_keypoints_and_poses(self, heatmaps, pafs, scale, pad, frame_height, frame_width):
         """
@@ -251,20 +402,19 @@ class OpenPosePoseEstimator(PoseEstimator):
         
         Returns landmarks for the primary (most confident) detected pose.
         """
-        # Import modules from openpose directory
-        from modules.keypoints import extract_keypoints, group_keypoints
-        from modules.pose import Pose
-        
-        num_keypoints = Pose.num_kpts  # 18
+        num_keypoints = 18  # OpenPose COCO keypoints
         
         total_keypoints_num = 0
         all_keypoints_by_type = []
         for kpt_idx in range(num_keypoints):
-            total_keypoints_num += extract_keypoints(
+            total_keypoints_num += self._extract_keypoints(
                 heatmaps[:, :, kpt_idx], all_keypoints_by_type, total_keypoints_num
             )
         
-        pose_entries, all_keypoints = group_keypoints(all_keypoints_by_type, pafs)
+        pose_entries, all_keypoints = self._group_keypoints(all_keypoints_by_type, pafs)
+        
+        if len(all_keypoints) == 0:
+            return {}
         
         # Transform keypoints back to original frame coordinates
         for kpt_id in range(all_keypoints.shape[0]):
@@ -322,7 +472,7 @@ class OpenPosePoseEstimator(PoseEstimator):
     
     def process(self, frame: np.ndarray) -> PoseResult:
         """
-        Process a frame using OpenPose.
+        Process a frame using OpenPose ONNX.
         
         Args:
             frame: BGR image (OpenCV format)
@@ -370,6 +520,6 @@ class OpenPosePoseEstimator(PoseEstimator):
     
     def cleanup(self) -> None:
         """Release OpenPose resources."""
-        self._net = None
+        self._session = None
         self._initialized = False
         print("[OpenPose] Cleaned up resources")
