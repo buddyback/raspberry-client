@@ -37,6 +37,7 @@ class MediaPipePoseEstimator(PoseEstimator):
     
     # Mapping from landmark indices to our standard names
     # MediaPipe Pose uses these indices (same as PoseLandmark enum)
+    # MediaPipe uses anatomical left/right (person's perspective)
     LANDMARK_MAPPING = {
         0: "nose",
         1: "l_eye_inner",
@@ -95,6 +96,22 @@ class MediaPipePoseEstimator(PoseEstimator):
     @property
     def supported_landmarks(self) -> List[str]:
         return list(self.LANDMARK_MAPPING.values())
+    
+    @property
+    def uses_reliable_visibility(self) -> bool:
+        """
+        MediaPipe reports ~1.0 visibility for all landmarks even when occluded.
+        Visibility cannot be used to determine which side faces the camera.
+        """
+        return False
+    
+    @property
+    def uses_smoothing(self) -> bool:
+        """
+        MediaPipe already applies internal smoothing (smooth_landmarks=True).
+        No additional smoothing needed.
+        """
+        return False
     
     def initialize(self) -> None:
         """Initialize the MediaPipe Pose (Legacy Solutions API)."""

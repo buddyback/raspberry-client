@@ -120,12 +120,16 @@ class PostureAnalyzer:
                 t = (x - x0) / (x1 - x0)
                 return y0 + t * (y1 - y0)
 
-    def analyze_posture(self, landmarks, sensitivity=-1, visibility_thresholds=None):
+    def analyze_posture(self, landmarks, sensitivity=-1, visibility_thresholds=None, uses_reliable_visibility=True):
         """
         Analyze posture based on the landmarks
 
         Args:
             landmarks: Dictionary of landmark coordinates
+            sensitivity: Threshold for good posture detection
+            visibility_thresholds: Model-specific thresholds for landmark visibility
+            uses_reliable_visibility: If True, use visibility values to detect webcam side.
+                                      If False (MediaPipe), use ear X positions instead.
 
         Returns:
             Dictionary: Results of posture analysis
@@ -162,15 +166,41 @@ class PostureAnalyzer:
         r_shoulder_vis = landmarks.get("r_shoulder_visibility", 0)
 
         # Determine webcam position relative to the user
-        # Higher visibility on left side means webcam is on the right and vice versa
-        if l_ear_vis > r_ear_vis:
-            if self.same_side_frames == -1 or self.same_side_frames == 60:
-                self.webcam_position = "right"  # If left ear is more visible, webcam is on right
-                self.same_side_frames = 0
+        # The ear that faces the camera is the one on the same side as the webcam
+        
+        if uses_reliable_visibility:
+            # OpenPose/MoveNet case: visibility values reliably indicate which ear is visible
+            # Hidden ear has low/zero visibility, visible ear has high visibility
+            facing_ear = "right" if r_ear_vis > l_ear_vis else "left"
         else:
-            if self.same_side_frames == -1 or self.same_side_frames == 60:
-                self.webcam_position = "left"  # If right ear is more visible, webcam is on left
-                self.same_side_frames = 0
+            # MediaPipe case: visibility ~1.0 for both ears (unreliable)
+            # Use shoulder X positions instead - the shoulder closer to camera appears
+            # more toward the left side of the image (lower X in a standard side profile)
+            # 
+            # When webcam is on user's RIGHT:
+            # - User faces right → right shoulder is closer to camera → right shoulder has LOWER X
+            # - l_shoulder.x > r_shoulder.x
+            # 
+            # When webcam is on user's LEFT:
+            # - User faces left → left shoulder is closer to camera → left shoulder has LOWER X
+            # - r_shoulder.x > l_shoulder.x
+            if l_shoulder is not None and r_shoulder is not None:
+                l_shoulder_x = l_shoulder[0] if isinstance(l_shoulder, tuple) else 0
+                r_shoulder_x = r_shoulder[0] if isinstance(r_shoulder, tuple) else 0
+                
+                # If left shoulder has higher X, user is facing right → webcam on right
+                if l_shoulder_x > r_shoulder_x:
+                    facing_ear = "right"
+                else:
+                    facing_ear = "left"
+            else:
+                # Fallback to visibility if we don't have shoulders
+                facing_ear = "right" if r_ear_vis > l_ear_vis else "left"
+        
+        # Update position with debouncing
+        if self.same_side_frames == -1 or self.same_side_frames == 60:
+            self.webcam_position = facing_ear
+            self.same_side_frames = 0
         if self.same_side_frames < 60:
             self.same_side_frames += 1
 
@@ -186,10 +216,10 @@ class PostureAnalyzer:
 
         results["webcam_placement"] = "good"
         ear_threshold = visibility_thresholds.get("ear", 0.90)
-        # When webcam is on user's RIGHT, the user is facing LEFT, so LEFT ear is visible
-        # When webcam is on user's LEFT, the user is facing RIGHT, so RIGHT ear is visible
-        if (results["webcam_position"] == "right" and l_ear_vis < ear_threshold) or (
-            results["webcam_position"] == "left" and r_ear_vis < ear_threshold
+        # When webcam is on user's RIGHT, the user's RIGHT ear faces camera and should be visible
+        # When webcam is on user's LEFT, the user's LEFT ear faces camera and should be visible
+        if (results["webcam_position"] == "right" and r_ear_vis < ear_threshold) or (
+            results["webcam_position"] == "left" and l_ear_vis < ear_threshold
         ):
             results["webcam_placement"] = "ear"
 

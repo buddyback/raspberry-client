@@ -128,6 +128,36 @@ class PoseEstimator(ABC):
             "shoulder": 0.80,
         }
     
+    @property
+    def uses_reliable_visibility(self) -> bool:
+        """
+        Return True if this estimator's visibility values can reliably distinguish
+        which side of the body faces the camera.
+        
+        MediaPipe reports ~1.0 visibility for all landmarks even when occluded,
+        so visibility can't be used to determine webcam position.
+        
+        OpenPose/MoveNet report 0 or low visibility for occluded landmarks,
+        so visibility CAN be used for side detection.
+        
+        Returns:
+            True if visibility values reliably indicate occlusion, False otherwise.
+        """
+        return True  # Default: visibility is reliable (OpenPose, MoveNet, PoseNet)
+    
+    @property
+    def uses_smoothing(self) -> bool:
+        """
+        Return True if this estimator's landmarks should be smoothed with a moving average.
+        
+        Some models (like MoveNet) have noisy/jittery outputs that benefit from smoothing.
+        Others (like MediaPipe) already apply internal smoothing.
+        
+        Returns:
+            True to apply moving average smoothing to landmarks, False otherwise.
+        """
+        return True  # Default: apply smoothing (most models benefit from it)
+    
     @abstractmethod
     def initialize(self) -> None:
         """

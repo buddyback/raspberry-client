@@ -101,6 +101,11 @@ class PostureDetector(QObject):
         # Thread pool for running blocking operations (like TensorFlow inference)
         # This prevents blocking the asyncio event loop on slower devices like Raspberry Pi
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        
+        # Landmark smoothing with moving average
+        # Stores recent landmark positions for averaging
+        self._landmark_history = []
+        self._smoothing_window = 10  # Number of frames to average
 
     def _update_history(self, analysis_results):
         if analysis_results["webcam_placement"] != "good":
@@ -244,8 +249,21 @@ class PostureDetector(QObject):
             l_shoulder_visibility = l_shoulder_vis.visibility if l_shoulder_vis else 0
             r_shoulder_visibility = r_shoulder_vis.visibility if r_shoulder_vis else 0
 
-            # Add information about which ear is more visible (useful for analyzing posture)
-            landmarks["primary_ear"] = "left" if l_ear_visibility >= r_ear_visibility else "right"
+            # Determine which ear/side is "primary" (facing the camera)
+            # For models with reliable visibility (OpenPose, MoveNet): use ear visibility
+            # For MediaPipe: visibility is always ~1.0, so use shoulder X positions instead
+            if self.pose_estimator.uses_reliable_visibility:
+                # Use visibility - the more visible ear is facing camera
+                primary_ear = "left" if l_ear_visibility >= r_ear_visibility else "right"
+            else:
+                # MediaPipe: use shoulder X positions
+                # The shoulder closer to camera (lower X in image) determines which side faces camera
+                l_shoulder_x = l_shoulder_vis.x if l_shoulder_vis else 0
+                r_shoulder_x = r_shoulder_vis.x if r_shoulder_vis else 0
+                # Note: l_shoulder_x > r_shoulder_x means user faces right, so right ear is primary
+                primary_ear = "right" if l_shoulder_x > r_shoulder_x else "left"
+            
+            landmarks["primary_ear"] = primary_ear
             landmarks["l_ear_visibility"] = l_ear_visibility
             landmarks["r_ear_visibility"] = r_ear_visibility
             landmarks["l_hip_visibility"] = l_hip_visibility
@@ -258,6 +276,63 @@ class PostureDetector(QObject):
         except Exception as e:
             print(f"Error extracting landmarks: {e}")
             return {}
+    
+    def _smooth_landmarks(self, landmarks: dict) -> dict:
+        """
+        Apply moving average smoothing to landmark positions.
+        
+        This reduces jitter in models with noisy outputs (like MoveNet/PoseNet).
+        Only smooths coordinate tuples, not metadata like visibility values.
+        
+        Args:
+            landmarks: Dictionary of landmark coordinates
+            
+        Returns:
+            Dictionary with smoothed coordinates
+        """
+        if not landmarks:
+            return landmarks
+        
+        # Add current landmarks to history
+        self._landmark_history.append(landmarks.copy())
+        
+        # Keep only recent frames
+        if len(self._landmark_history) > self._smoothing_window:
+            self._landmark_history.pop(0)
+        
+        # Not enough history yet, return original
+        if len(self._landmark_history) < 2:
+            return landmarks
+        
+        # Calculate moving average for each landmark
+        smoothed = {}
+        for key in landmarks:
+            value = landmarks[key]
+            
+            # Only smooth coordinate tuples (x, y)
+            if isinstance(value, tuple) and len(value) == 2:
+                # Collect values from history
+                x_values = []
+                y_values = []
+                for hist_landmarks in self._landmark_history:
+                    if key in hist_landmarks:
+                        hist_value = hist_landmarks[key]
+                        if isinstance(hist_value, tuple) and len(hist_value) == 2:
+                            x_values.append(hist_value[0])
+                            y_values.append(hist_value[1])
+                
+                if x_values and y_values:
+                    # Calculate average
+                    avg_x = int(sum(x_values) / len(x_values))
+                    avg_y = int(sum(y_values) / len(y_values))
+                    smoothed[key] = (avg_x, avg_y)
+                else:
+                    smoothed[key] = value
+            else:
+                # Keep non-coordinate values as-is (visibility, primary_ear, etc.)
+                smoothed[key] = value
+        
+        return smoothed
 
     async def process_frame(self, frame):
         """
@@ -300,14 +375,22 @@ class PostureDetector(QObject):
                 webcam_placement_text
             )
             return frame
+        
+        # Apply smoothing if the estimator uses it
+        if self.pose_estimator.uses_smoothing:
+            landmarks = self._smooth_landmarks(landmarks)
             
         draw_landmarks(frame, landmarks)
 
         sensitivity = self.settings.get("sensitivity", -1)
         # Get visibility thresholds from the pose estimator (model-specific)
         visibility_thresholds = self.pose_estimator.visibility_thresholds
+        # Check if this estimator has reliable visibility for side detection
+        uses_reliable_visibility = self.pose_estimator.uses_reliable_visibility
         # Analyze posture
-        analysis_results = self.analyzer.analyze_posture(landmarks, sensitivity, visibility_thresholds)
+        analysis_results = self.analyzer.analyze_posture(
+            landmarks, sensitivity, visibility_thresholds, uses_reliable_visibility
+        )
 
         self._update_history(analysis_results)
         self._maybe_send_posture(analysis_results)
