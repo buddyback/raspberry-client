@@ -99,7 +99,7 @@ class MoveNetPoseEstimator(PoseEstimator):
         """
         return {
             "ear": 0.10,
-            "hip": 0.10,
+            "hip": 0.07,
             "shoulder": 0.15,
         }
     

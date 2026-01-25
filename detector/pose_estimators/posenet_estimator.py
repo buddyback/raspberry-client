@@ -82,7 +82,7 @@ class PoseNetPoseEstimator(PoseEstimator):
         """
         return {
             "ear": 0.30,
-            "hip": 0.20,
+            "hip": 0.10,
             "shoulder": 0.25,
         }
     

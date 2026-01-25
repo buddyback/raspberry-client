@@ -134,7 +134,7 @@ class OpenPosePoseEstimator(PoseEstimator):
         """
         return {
             "ear": 0.25,
-            "hip": 0.15,
+            "hip": 0.10,
             "shoulder": 0.20,
         }
     
