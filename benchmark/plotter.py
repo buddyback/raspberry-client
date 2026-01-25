@@ -75,8 +75,8 @@ def create_comparison_plots(results: Dict[str, Dict], output_path: Path) -> None
     # 2. Theoretical Max FPS (higher is better)
     ax2 = axes[0, 1]
     bars2 = ax2.bar(estimators, theoretical_fps, color=colors)
-    ax2.set_ylabel("Theoretical Max FPS")
-    ax2.set_title("🚀 Theoretical Max FPS (higher is better)")
+    ax2.set_ylabel("Max FPS")
+    ax2.set_title("🚀 Max FPS (higher is better)")
     ax2.tick_params(axis='x', rotation=45)
     for bar, val in zip(bars2, theoretical_fps):
         ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, 
