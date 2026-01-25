@@ -367,6 +367,7 @@ class PostureAnalyzer:
             results["webcam_placement"] = "ear"
 
         hip_threshold = visibility_thresholds.get("hip", 0.75)
+        print(max(l_hip_vis, r_hip_vis))
         if max(l_hip_vis, r_hip_vis) < hip_threshold:
             results["webcam_placement"] = "hip"
 
