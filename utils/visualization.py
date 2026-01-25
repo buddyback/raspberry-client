@@ -16,7 +16,10 @@ from PyQt6.QtWidgets import (
     QStackedWidget,
     QVBoxLayout,
     QWidget,
+    QPushButton,
 )
+
+from PyQt6.QtCore import pyqtSignal
 
 from config.settings import BODY_COMPONENTS, COLORS, FONT_FACE, PANEL_OPACITY, PANEL_PADDING, TEXT_PADDING
 
@@ -518,6 +521,9 @@ class MainScreen(QWidget):
 
 
 class PostureWindow(QWidget):
+    # Signal emitted when calibration button is clicked
+    calibration_clicked = pyqtSignal()
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Posture Status")
@@ -595,7 +601,40 @@ class PostureWindow(QWidget):
         self.webcam_label.setStyleSheet("background-color: black;")
         # Set minimum size to fill all available space in right panel (400px width x 480px height)
         self.webcam_label.setMinimumHeight(500)
+        self.webcam_label.setMinimumHeight(500)
         webcam_layout.addWidget(self.webcam_label)
+
+        # Overlay layout for the calibration button
+        # We set a layout on the label itself to position the button
+        overlay_layout = QVBoxLayout(self.webcam_label)
+        overlay_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+        overlay_layout.setContentsMargins(10, 10, 10, 10)
+        
+        # Add transparent calibration button
+        self.calibrate_btn = QPushButton("Recalibrate")
+        self.calibrate_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.calibrate_btn.setFixedSize(120, 40)
+        self.calibrate_btn.setStyleSheet(
+            """
+            QPushButton {
+                background-color: rgba(0, 0, 0, 150);
+                color: white;
+                border: 2px solid white;
+                border-radius: 5px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: rgba(255, 255, 255, 50);
+                background-color: rgba(50, 50, 50, 180);
+            }
+            QPushButton:pressed {
+                background-color: rgba(100, 100, 100, 200);
+            }
+            """
+        )
+        self.calibrate_btn.clicked.connect(self.calibration_clicked.emit)
+        overlay_layout.addWidget(self.calibrate_btn)
 
         # Current frame and analysis data
         self.current_frame = None

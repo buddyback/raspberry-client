@@ -31,7 +31,150 @@ class PostureAnalyzer:
         self.same_side_frames = -1
         self.webcam_position = ""
         self.webcam_placement = "good"
-        pass
+        
+        # Calibration state - captures baselines for ALL measurements
+        self._calibrating = False
+        self._calibration_samples = {
+            "torso": [],
+            "neck": [],
+            "shoulders": [],
+            "torso_length": [],  # Used for perspective correction
+        }
+        self._calibration_duration = 3.0  # seconds to collect samples
+        
+        # Baseline offsets to compensate for webcam angle
+        self._baseline_torso_angle = 0.0
+        self._baseline_neck_angle = 0.0  # For relative neck angle
+        self._baseline_shoulders_offset = 0.0
+        self._perspective_factor = 1.0  # Multiplier for angle deviations
+        self._is_calibrated = False
+    
+    @property
+    def is_calibrating(self) -> bool:
+        """Return True if currently in calibration mode."""
+        return self._calibrating
+    
+    @property
+    def is_calibrated(self) -> bool:
+        """Return True if calibration has been completed."""
+        return self._is_calibrated
+    
+    @property
+    def baseline_torso_angle(self) -> float:
+        """Return the calibrated baseline torso angle."""
+        return self._baseline_torso_angle
+        
+    @property
+    def perspective_factor(self) -> float:
+        """Return the calculated perspective correction factor."""
+        return self._perspective_factor
+    
+    def start_calibration(self):
+        """
+        Start the calibration process.
+        Call this when user triggers calibration (e.g., presses 'c').
+        """
+        self._calibrating = True
+        self._calibration_samples = {
+            "torso": [],
+            "neck": [],
+            "shoulders": [],
+            "torso_length": [],
+        }
+        print("[Calibration] Started - please sit in your best posture...")
+    
+    def add_calibration_sample(self, torso_angle: float, neck_angle: float, shoulders_offset: float, torso_length: float):
+        """
+        Add samples during calibration.
+        Called automatically during analyze_posture when calibrating.
+        
+        Args:
+            torso_angle: The current torso angle measurement
+            neck_angle: The current relative neck angle measurement
+            shoulders_offset: The current shoulder offset measurement
+            torso_length: The current torso pixel length (for normalization)
+        """
+        if self._calibrating:
+            self._calibration_samples["torso"].append(torso_angle)
+            self._calibration_samples["neck"].append(neck_angle)
+            self._calibration_samples["shoulders"].append(shoulders_offset)
+            self._calibration_samples["torso_length"].append(torso_length)
+    
+    def _median(self, values: list) -> float:
+        """Calculate median of a list of values."""
+        if not values:
+            return 0.0
+        sorted_vals = sorted(values)
+        mid = len(sorted_vals) // 2
+        if len(sorted_vals) % 2 == 0:
+            return (sorted_vals[mid - 1] + sorted_vals[mid]) / 2
+        return sorted_vals[mid]
+    
+    def complete_calibration(self) -> bool:
+        """
+        Complete the calibration and compute baselines for all measurements.
+        Also computes perspective correction factor.
+        
+        Returns:
+            True if calibration succeeded, False if not enough samples
+        """
+        if not self._calibration_samples["torso"]:
+            print("[Calibration] Failed - no samples collected")
+            self._calibrating = False
+            return False
+        
+        # Use median to be robust to outliers
+        self._baseline_torso_angle = self._median(self._calibration_samples["torso"])
+        self._baseline_neck_angle = self._median(self._calibration_samples["neck"])
+        self._baseline_shoulders_offset = self._median(self._calibration_samples["shoulders"])
+        
+        baseline_torso_length = self._median(self._calibration_samples["torso_length"])
+        
+        # Calculate perspective factor
+        # Ratio of shoulder width to torso length tells us how "frontal" the view is
+        # Higher ratio = more frontal or more angled camera (seeing both shoulders)
+        # Wait, if camera is perfectly side-on (90 deg), shoulders overlap -> offset is small -> ratio small
+        # If camera is 45 deg, shoulders visible -> offset large -> ratio large
+        # We want HIGHER sensitivity when ratio is LARGE (angled view) ??
+        # No, wait:
+        # Side view (90 deg): Shoulder offset ~ 0. Sensitivity is normal (movements map directly).
+        # Front view (0 deg): Shoulder offset is MAX. Torso angle sensitivity is ZERO (can't see lean).
+        # Angled view (45 deg): Shoulder offset is MEDIUM. Torso angle sensitivity is REDUCED.
+        
+        # Actually: 
+        # Ideally, shoulder offset should be 0 for side view.
+        # If offset > 0, it means we are seeing some front/back perspective.
+        # This PERSPECTIVE shortens the observed angles of forward/backward leans.
+        # So we want to BOOST the angles more as the shoulder offset increases.
+        
+        if baseline_torso_length > 0:
+            shoulder_ratio = self._baseline_shoulders_offset / baseline_torso_length
+            # Empirical tuning: 
+            # If ratio is 0.0 (perfect side), factor = 1.0
+            # If ratio is 0.5 (angled), factor = 1.0 + (4.0 * 0.5) = 3.0 (boost angles by 3x)
+            self._perspective_factor = 1.0 + (4.0 * shoulder_ratio)
+        else:
+            self._perspective_factor = 1.0
+
+        self._is_calibrated = True
+        self._calibrating = False
+        print(f"[Calibration] Complete!")
+        print(f"  Torso baseline: {self._baseline_torso_angle:.1f}°")
+        print(f"  Neck baseline: {self._baseline_neck_angle:.1f}°")
+        print(f"  Shoulders baseline: {self._baseline_shoulders_offset:.1f}px")
+        print(f"  Perspective Factor: {self._perspective_factor:.2f}x (Ratio: {shoulder_ratio:.2f})")
+        return True
+
+    
+    def reset_calibration(self):
+        """Reset calibration to default (no compensation)."""
+        self._baseline_torso_angle = 0.0
+        self._baseline_neck_angle = 0.0
+        self._baseline_shoulders_offset = 0.0
+        self._is_calibrated = False
+        self._calibrating = False
+        self._calibration_samples = {"torso": [], "neck": [], "shoulders": []}
+        print("[Calibration] Reset to default")
 
     def calculate_distance(self, x1, y1, x2, y2):
         """
@@ -274,8 +417,23 @@ class PostureAnalyzer:
             else:
                 hip_x, hip_y = r_hip
 
-        # Calculate shoulder offset
+        # Calculate shoulder-to-shoulder offset (width)
         results["shoulders_offset"] = self.calculate_distance(l_shldr_x, l_shldr_y, r_shldr_x, r_shldr_y)
+        
+        # Calculate torso length (approx distance from mid-shoulders to mid-hips)
+        mid_shoulder_x = (l_shldr_x + r_shldr_x) / 2
+        mid_shoulder_y = (l_shldr_y + r_shldr_y) / 2
+        mid_hip_x = (l_hip_x + r_hip_x) / 2   if 'l_hip_x' in locals() and 'r_hip_x' in locals() else hip_x # Approximate
+        mid_hip_y = (l_hip_y + r_hip_y) / 2   if 'l_hip_y' in locals() and 'r_hip_y' in locals() else hip_y # Approximate
+        
+        # Better approximation if we have both hips
+        if l_hip is not None and r_hip is not None:
+             mid_hip_x = (l_hip[0] + r_hip[0]) / 2
+             mid_hip_y = (l_hip[1] + r_hip[1]) / 2
+        else:
+             mid_hip_x, mid_hip_y = hip_x, hip_y
+             
+        torso_length = self.calculate_distance(mid_shoulder_x, mid_shoulder_y, mid_hip_x, mid_hip_y)
 
         # Calculate angles
         results["neck_angle"] = self.calculate_angle(shoulder_x, shoulder_y, ear_x, ear_y)
@@ -285,9 +443,14 @@ class PostureAnalyzer:
         # Calculate relative angle between neck and torso
         results["relative_neck_angle"] = min(abs(results["neck_angle"] - results["torso_angle"]), results["neck_angle"])
 
-        # print("-------------------")
-        # print(results["torso_angle"])
-        # print(results["relative_neck_angle"])
+        # Collect calibration samples if calibrating (before applying baseline adjustments)
+        if self._calibrating:
+            self.add_calibration_sample(
+                results["torso_angle"],
+                results["relative_neck_angle"],
+                results["shoulders_offset"],
+                torso_length
+            )
 
         # Alternative condition: neck angle is smaller than torso angle (head is actually back)
         # This happens in a true reclined position
@@ -298,13 +461,23 @@ class PostureAnalyzer:
         if results["torso_angle"] <= -30:
             relative_neck_angle = int(relative_neck_angle / 1.5)
 
-        # compute scores
-        positive_neck_angle = relative_neck_angle if relative_neck_angle >= 0 else -relative_neck_angle
-        positive_torso_angle = results["torso_angle"] if results["torso_angle"] >= 0 else -results["torso_angle"]
+        # Compute scores - apply calibration baselines and perspective correction
+        # This compensates for webcam angle offset and perspective distortion
+        
+        # Neck: deviation from calibrated baseline * perspective factor
+        calibrated_neck_angle = abs(relative_neck_angle - self._baseline_neck_angle) * self._perspective_factor
+        
+        # Torso: deviation from calibrated baseline * perspective factor
+        calibrated_torso_angle = abs(results["torso_angle"] - self._baseline_torso_angle) * self._perspective_factor
+        
+        # Shoulders: deviation from calibrated baseline (no perspective correction needed for this one?)
+        # Actually shoulder offset deviation IS the signal for bad posture, usually we want closer to 0 (side view).
+        # But if we calibrated a baseline, we want to stay close to that baseline.
+        calibrated_shoulders = abs(results["shoulders_offset"] - self._baseline_shoulders_offset)
 
-        results["neck_score"] = self.compute_score(NECK_SCORE_MAP, positive_neck_angle)
-        results["torso_score"] = self.compute_score(TORSO_SCORE_MAP, positive_torso_angle)
-        results["shoulders_score"] = self.compute_score(SHOULDERS_SCORE_MAP, results["shoulders_offset"])
+        results["neck_score"] = self.compute_score(NECK_SCORE_MAP, calibrated_neck_angle)
+        results["torso_score"] = self.compute_score(TORSO_SCORE_MAP, calibrated_torso_angle)
+        results["shoulders_score"] = self.compute_score(SHOULDERS_SCORE_MAP, calibrated_shoulders)
 
         results["good_posture"] = (
             results["neck_score"] >= sensitivity

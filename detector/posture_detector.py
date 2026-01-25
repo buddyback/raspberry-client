@@ -106,6 +106,14 @@ class PostureDetector(QObject):
         # Stores recent landmark positions for averaging
         self._landmark_history = []
         self._smoothing_window = 10  # Number of frames to average
+        
+        # Calibration timing
+        self._calibration_start_time = None
+        self._calibration_duration = 3.0  # seconds
+        
+        # Connect UI signals
+        if self.app_controller:
+            self.app_controller.posture_window.calibration_clicked.connect(self.start_calibration)
 
     def _update_history(self, analysis_results):
         if analysis_results["webcam_placement"] != "good":
@@ -204,6 +212,60 @@ class PostureDetector(QObject):
 
         # All window resize functionality has been removed since we're not using OpenCV windows
         return True
+    
+    def start_calibration(self):
+        """Start the calibration process."""
+        self.analyzer.start_calibration()
+        self._calibration_start_time = time.time()
+        if self.app_controller:
+            self.app_controller.posture_window.show_alert(
+                "Sit in your best posture...", duration=3000
+            )
+    
+    def check_calibration_complete(self):
+        """Check if calibration should be completed (after duration elapsed)."""
+        if self.analyzer.is_calibrating and self._calibration_start_time is not None:
+            elapsed = time.time() - self._calibration_start_time
+            if elapsed >= self._calibration_duration:
+                self.analyzer.complete_calibration()
+                self._calibration_start_time = None
+                if self.app_controller:
+                    baseline = self.analyzer.baseline_torso_angle
+                    self.app_controller.posture_window.show_alert(
+                        f"Calibrated! Baseline: {baseline:.1f}°", duration=2000
+                    )
+    
+    async def _process_stdin_commands(self):
+        """Process user commands from stdin asynchronously."""
+        import sys
+        loop = asyncio.get_event_loop()
+        
+        while True:
+            try:
+                # Read line from stdin in a non-blocking way
+                line = await loop.run_in_executor(None, sys.stdin.readline)
+                command = line.strip().lower()
+                
+                if not command:
+                    continue
+                
+                if command in ("c", "calibrate"):
+                    self.start_calibration()
+                elif command in ("r", "reset"):
+                    self.analyzer.reset_calibration()
+                    if self.app_controller:
+                        self.app_controller.posture_window.show_alert(
+                            "Calibration reset", duration=2000
+                        )
+                elif command == "data":
+                    # Send current posture data
+                    if hasattr(self, "_last_analysis_results") and self._last_analysis_results:
+                        await self.websocket_client.send_posture_data(self._last_analysis_results)
+                else:
+                    print(f"Unknown command: {command}")
+            except Exception as e:
+                print(f"Error processing command: {e}")
+                await asyncio.sleep(1)
 
     def extract_landmarks_from_result(self, pose_result):
         """
@@ -594,11 +656,16 @@ class PostureDetector(QObject):
             print("=" * 50)
             print("Commands:")
             print("  'data' - Send single posture data sample")
+            print("  'c' or 'calibrate' - Start posture calibration")
+            print("  'r' or 'reset' - Reset calibration to default")
             print("=" * 50)
             print(f"DEBUG: Waiting for messages at {time.strftime('%H:%M:%S')}")
 
             # Start a task to continuously update settings
             asyncio.create_task(self.update_settings())
+            
+            # Start a task to process user commands from stdin
+            asyncio.create_task(self._process_stdin_commands())
 
             # Get initial session state
             initial_session_active = self.settings.get("has_active_session", False)
@@ -665,6 +732,9 @@ class PostureDetector(QObject):
                 if not success:
                     print("Error: Failed to capture image from webcam")
                     break
+
+                # Check if calibration should complete
+                self.check_calibration_complete()
 
                 # Process the frame
                 processed_frame = await self.process_frame(frame)
