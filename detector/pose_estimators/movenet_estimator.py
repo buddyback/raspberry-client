@@ -83,7 +83,11 @@ class MoveNetPoseEstimator(PoseEstimator):
     @property
     def name(self) -> str:
         return f"MoveNet ({self._variant})"
-    
+
+    @property
+    def uses_reliable_visibility(self) -> bool:
+        return False
+
     @property
     def supported_landmarks(self) -> List[str]:
         return MOVENET_KEYPOINTS.copy()
