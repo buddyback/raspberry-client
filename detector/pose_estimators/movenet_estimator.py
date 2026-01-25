@@ -86,7 +86,7 @@ class MoveNetPoseEstimator(PoseEstimator):
 
     @property
     def uses_reliable_visibility(self) -> bool:
-        return False
+        return True
 
     @property
     def supported_landmarks(self) -> List[str]:

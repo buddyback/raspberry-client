@@ -111,9 +111,13 @@ class PostureDetector(QObject):
         self._calibration_start_time = None
         self._calibration_duration = 3.0  # seconds
         
+        # Webcam side mode: "auto", "left", or "right"
+        self._webcam_side_mode = "auto"
+        
         # Connect UI signals
         if self.app_controller:
             self.app_controller.posture_window.calibration_clicked.connect(self.start_calibration)
+            self.app_controller.posture_window.side_mode_changed.connect(self.set_webcam_side_mode)
 
     def _update_history(self, analysis_results):
         if analysis_results["webcam_placement"] != "good":
@@ -222,6 +226,15 @@ class PostureDetector(QObject):
                 "Sit in your best posture...", duration=3000
             )
     
+    def set_webcam_side_mode(self, mode: str):
+        """Set the webcam side mode.
+        
+        Args:
+            mode: "auto", "left", or "right"
+        """
+        self._webcam_side_mode = mode
+        print(f"[PostureDetector] Webcam side mode set to: {mode}")
+    
     def check_calibration_complete(self):
         """Check if calibration should be completed (after duration elapsed)."""
         if self.analyzer.is_calibrating and self._calibration_start_time is not None:
@@ -312,13 +325,15 @@ class PostureDetector(QObject):
             r_shoulder_visibility = r_shoulder_vis.visibility if r_shoulder_vis else 0
 
             # Determine which ear/side is "primary" (facing the camera)
-            # For models with reliable visibility (OpenPose, MoveNet): use ear visibility
-            # For MediaPipe: visibility is always ~1.0, so use shoulder X positions instead
-            if self.pose_estimator.uses_reliable_visibility:
-                # Use visibility - the more visible ear is facing camera
+            # Check if user has manually selected a side mode
+            if self._webcam_side_mode in ("left", "right"):
+                # User has forced a specific side
+                primary_ear = self._webcam_side_mode
+            elif self.pose_estimator.uses_reliable_visibility:
+                # For models with reliable visibility (OpenPose, MoveNet): use ear visibility
                 primary_ear = "left" if l_ear_visibility >= r_ear_visibility else "right"
             else:
-                # MediaPipe: use shoulder X positions
+                # MediaPipe: visibility is always ~1.0, so use shoulder X positions instead
                 # The shoulder closer to camera (lower X in image) determines which side faces camera
                 l_shoulder_x = l_shoulder_vis.x if l_shoulder_vis else 0
                 r_shoulder_x = r_shoulder_vis.x if r_shoulder_vis else 0

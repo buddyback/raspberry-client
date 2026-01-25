@@ -523,6 +523,8 @@ class MainScreen(QWidget):
 class PostureWindow(QWidget):
     # Signal emitted when calibration button is clicked
     calibration_clicked = pyqtSignal()
+    # Signal emitted when side mode changes (left, right, auto)
+    side_mode_changed = pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
@@ -635,6 +637,32 @@ class PostureWindow(QWidget):
         )
         self.calibrate_btn.clicked.connect(self.calibration_clicked.emit)
         overlay_layout.addWidget(self.calibrate_btn)
+        
+        # Side mode button - cycles through auto/left/right
+        self._side_mode = "auto"
+        self.side_mode_btn = QPushButton("Side: Auto")
+        self.side_mode_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.side_mode_btn.setFixedSize(120, 40)
+        self.side_mode_btn.setStyleSheet(
+            """
+            QPushButton {
+                background-color: rgba(0, 0, 0, 150);
+                color: white;
+                border: 2px solid white;
+                border-radius: 5px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: rgba(50, 50, 50, 180);
+            }
+            QPushButton:pressed {
+                background-color: rgba(100, 100, 100, 200);
+            }
+            """
+        )
+        self.side_mode_btn.clicked.connect(self._cycle_side_mode)
+        overlay_layout.addWidget(self.side_mode_btn)
 
         # Current frame and analysis data
         self.current_frame = None
@@ -816,3 +844,13 @@ class PostureWindow(QWidget):
             }}
         """
         )
+
+    def _cycle_side_mode(self):
+        """Cycle through side modes: auto -> left -> right -> auto"""
+        modes = ["auto", "left", "right"]
+        current_idx = modes.index(self._side_mode)
+        self._side_mode = modes[(current_idx + 1) % len(modes)]
+        self.side_mode_btn.setText(f"Side: {self._side_mode.capitalize()}")
+        self.side_mode_changed.emit(self._side_mode)
+        print(f"[UI] Webcam side mode changed to: {self._side_mode}")
+
