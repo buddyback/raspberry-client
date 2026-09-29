@@ -40,7 +40,7 @@ class PostureAnalyzer:
             "shoulders": [],
             "torso_length": [],  # Used for perspective correction
         }
-        self._calibration_duration = 3.0  # seconds to collect samples
+        self._calibration_duration = 5.0  # seconds to collect samples
         
         # Baseline offsets to compensate for webcam angle
         self._baseline_torso_angle = 0.0

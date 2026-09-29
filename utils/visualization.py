@@ -587,6 +587,44 @@ class PostureWindow(QWidget):
         self.neck_widget.mousePressEvent = lambda event: self.handle_widget_click("neck")
         posture_layout.addWidget(self.neck_widget)
 
+        # Calibration countdown widget - replaces the score bars while calibrating
+        self.calibration_widget = QWidget()
+        calibration_layout = QVBoxLayout(self.calibration_widget)
+        calibration_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        calibration_layout.setContentsMargins(2, 2, 2, 2)
+        calibration_layout.setSpacing(10)
+
+        self.calibration_countdown_label = QLabel("5")
+        self.calibration_countdown_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.calibration_countdown_label.setStyleSheet(
+            """
+            color: white;
+            font-weight: bold;
+            font-size: 160px;
+        """
+        )
+        calibration_layout.addWidget(self.calibration_countdown_label)
+
+        self.calibration_hint_label = QLabel("Maintain your best posture")
+        self.calibration_hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.calibration_hint_label.setWordWrap(True)
+        self.calibration_hint_label.setStyleSheet(
+            """
+            color: white;
+            font-weight: bold;
+            font-size: 24px;
+        """
+        )
+        calibration_layout.addWidget(self.calibration_hint_label)
+
+        left_layout.addWidget(self.calibration_widget)
+
+        # Calibration countdown state
+        self._calibration_active = False
+        self._calibration_remaining = 0
+        self._calibration_timer = QTimer(self)
+        self._calibration_timer.timeout.connect(self._tick_calibration_countdown)
+
         # Add stretch to push components to the top and fill remaining space
         left_layout.addStretch()
 
@@ -677,6 +715,7 @@ class PostureWindow(QWidget):
 
         # Initially hide posture container
         self.posture_container.hide()
+        self.calibration_widget.hide()
 
     def update_frame(self, frame, landmarks=None, analysis_results=None, colors=None):
         """
@@ -770,6 +809,10 @@ class PostureWindow(QWidget):
         """
         # Se un alert è già attivo, non fare nulla
 
+        # Don't let frame-driven alerts interrupt the calibration countdown
+        if self._calibration_active:
+            return
+
         self.status_widget.setText(message)
         self.status_widget.show()
         self.posture_container.hide()
@@ -780,16 +823,21 @@ class PostureWindow(QWidget):
 
             self.alert_active = True
             # Usa singleShot con reset del flag
-            QTimer.singleShot(duration, lambda: (
-                self.status_widget.hide(),
-                self.posture_container.show(),
-                setattr(self, 'alert_active', False)  # Reset del flag
-            ))
+            QTimer.singleShot(duration, self._clear_alert)
+
+    def _clear_alert(self):
+        """Hide a timed alert and restore the posture view unless calibrating."""
+        self.alert_active = False
+        self.status_widget.hide()
+        if not self._calibration_active:
+            self.posture_container.show()
 
     def update_results(self, results, colors):
         # Valid results - show posture container and update status
-        self.posture_container.show()
-        self.status_widget.hide()
+        # Keep the countdown or an active timed alert visible instead of overriding it
+        if not self._calibration_active and not self.alert_active:
+            self.posture_container.show()
+            self.status_widget.hide()
 
         # Update scores and status widgets
         if scores := results.get("scores"):
@@ -862,4 +910,43 @@ class PostureWindow(QWidget):
         self._side_mode = mode
         self.side_mode_btn.setVisible(False)
         print(f"[UI] Webcam side mode locked to: {mode} (button hidden)")
+
+    def start_calibration_countdown(self, seconds: int = 5, message: str = "Maintain your best posture"):
+        """Show a countdown in place of the score bars while calibrating.
+
+        Args:
+            seconds: Number of seconds to count down from.
+            message: Instruction shown below the big countdown number.
+        """
+        self._calibration_active = True
+        self._calibration_remaining = int(seconds)
+        self.calibration_countdown_label.setText(str(self._calibration_remaining))
+        self.calibration_hint_label.setText(message)
+
+        # Take over the screen: cancel any alert currently showing
+        self.alert_active = False
+        self.status_widget.hide()
+        self.posture_container.hide()
+        self.calibration_widget.show()
+
+        self._calibration_timer.start(1000)
+        print(f"[UI] Calibration countdown started ({seconds}s)")
+
+    def _tick_calibration_countdown(self):
+        """Decrement the calibration countdown once per second."""
+        self._calibration_remaining -= 1
+        if self._calibration_remaining > 0:
+            self.calibration_countdown_label.setText(str(self._calibration_remaining))
+        else:
+            # The detector signals completion; just stop at zero.
+            self._calibration_timer.stop()
+            self.calibration_countdown_label.setText("0")
+
+    def finish_calibration_countdown(self):
+        """Hide the countdown and restore the score bars after calibration."""
+        self._calibration_timer.stop()
+        self._calibration_active = False
+        self.calibration_widget.hide()
+        self.posture_container.show()
+        print("[UI] Calibration countdown finished")
 

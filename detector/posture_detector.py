@@ -113,7 +113,7 @@ class PostureDetector(QObject):
         
         # Calibration timing
         self._calibration_start_time = None
-        self._calibration_duration = 3.0  # seconds
+        self._calibration_duration = 5.0  # seconds
         
         # Webcam side mode: "auto", "left", or "right"
         # If a side was passed on the command line it is hard-set and the UI toggle is hidden.
@@ -230,9 +230,7 @@ class PostureDetector(QObject):
         self.analyzer.start_calibration()
         self._calibration_start_time = time.time()
         if self.app_controller:
-            self.app_controller.posture_window.show_alert(
-                "Sit in your best posture...", duration=3000
-            )
+            self.app_controller.posture_window.start_calibration_countdown(int(self._calibration_duration))
     
     def set_webcam_side_mode(self, mode: str):
         """Set the webcam side mode.
@@ -251,6 +249,8 @@ class PostureDetector(QObject):
                 self.analyzer.complete_calibration()
                 self._calibration_start_time = None
                 if self.app_controller:
+                    # Stop the countdown before showing the completion alert
+                    self.app_controller.posture_window.finish_calibration_countdown()
                     baseline = self.analyzer.baseline_torso_angle
                     self.app_controller.posture_window.show_alert(
                         f"Calibrated! Baseline: {baseline:.1f}°", duration=2000
