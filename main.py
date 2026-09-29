@@ -65,6 +65,16 @@ def parse_arguments():
         choices=[0, 1, 2],
         help="MediaPipe model complexity, only used with --estimator=mediapipe (default: 2)",
     )
+    parser.add_argument(
+        "--side",
+        type=str,
+        default=None,
+        choices=["left", "right", "auto"],
+        help=(
+            "Hard-set the webcam side and hide the side toggle button in the UI. "
+            "If omitted, the side is detected automatically and can be changed from the UI."
+        ),
+    )
 
     return parser.parse_args()
 
@@ -116,6 +126,7 @@ async def main():
                 pose_estimator=pose_estimator,
                 websocket_client=websocket_client,
                 app_controller=app_controller,
+                webcam_side=args.side,
             )
 
             # Start the app controller

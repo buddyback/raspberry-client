@@ -48,6 +48,7 @@ python -m main
 - `--height`: Set camera frame height (default: 480)
 - `--camera`: Select camera index (default: 0)
 - `--no-guidance`: Disable posture correction guidance
+- `--side`: Hard-set the webcam side to `left`, `right` or `auto`. When provided, the side toggle button is hidden from the UI. If omitted, the side is auto-detected and can be changed from the UI.
 
 Example:
 

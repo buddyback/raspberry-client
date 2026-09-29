@@ -854,3 +854,12 @@ class PostureWindow(QWidget):
         self.side_mode_changed.emit(self._side_mode)
         print(f"[UI] Webcam side mode changed to: {self._side_mode}")
 
+    def lock_side_mode(self, mode: str):
+        """Hard-set the webcam side and hide the side toggle button.
+
+        Used when the side is forced via the --side command line argument.
+        """
+        self._side_mode = mode
+        self.side_mode_btn.setVisible(False)
+        print(f"[UI] Webcam side mode locked to: {mode} (button hidden)")
+

@@ -44,7 +44,8 @@ class PostureDetector(QObject):
         show_guidance=True, 
         pose_estimator: "PoseEstimator" = None,
         websocket_client=None, 
-        app_controller=None
+        app_controller=None,
+        webcam_side=None
     ):
         """
         Initialize posture detector
@@ -55,6 +56,9 @@ class PostureDetector(QObject):
             pose_estimator: PoseEstimator instance for pose detection
             websocket_client: WebSocket client for sending/receiving data
             app_controller: Controller for the PyQt application
+            webcam_side: If set to "left", "right" or "auto", hard-set the webcam
+                side and hide the side toggle button in the UI (None keeps auto
+                detection with the UI button available)
         """
         super().__init__()
         self.camera_manager = camera_manager
@@ -112,12 +116,16 @@ class PostureDetector(QObject):
         self._calibration_duration = 3.0  # seconds
         
         # Webcam side mode: "auto", "left", or "right"
-        self._webcam_side_mode = "auto"
+        # If a side was passed on the command line it is hard-set and the UI toggle is hidden.
+        self._webcam_side_mode = webcam_side if webcam_side is not None else "auto"
+        self._webcam_side_locked = webcam_side is not None
         
         # Connect UI signals
         if self.app_controller:
             self.app_controller.posture_window.calibration_clicked.connect(self.start_calibration)
             self.app_controller.posture_window.side_mode_changed.connect(self.set_webcam_side_mode)
+            if self._webcam_side_locked:
+                self.app_controller.posture_window.lock_side_mode(self._webcam_side_mode)
 
     def _update_history(self, analysis_results):
         if analysis_results["webcam_placement"] != "good":
